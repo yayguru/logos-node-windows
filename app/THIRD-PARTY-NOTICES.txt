@@ -1,0 +1,24 @@
+Third-party software in this package
+
+bin\logos-blockchain-node.exe
+  Logos blockchain node, source https://github.com/logos-blockchain/logos-blockchain (tag 0.3.4, commit f7ab0323).
+  Licence: MIT OR Apache-2.0 (LICENSES\logos-blockchain-LICENSE-MIT.txt, LICENSES\logos-blockchain-LICENSE-APACHE-2.0.txt).
+  The exe also contains, statically linked:
+  - the Rust crates listed in the node's Cargo.lock (mostly MIT / Apache-2.0; see each crate's licence on crates.io),
+  - logos-blockchain-circuits (MIT OR Apache-2.0), https://github.com/logos-blockchain/logos-blockchain-circuits
+  - rapidsnark (iden3, LGPL-3.0, LICENSES\rapidsnark-LGPL-3.0.txt), https://github.com/iden3/rapidsnark
+  - GNU MP 6.2.1 (LGPL-3.0 / GPL-2.0, LICENSES\GMP-LGPL-3.0.txt + LICENSES\GPL-3.0.txt), https://gmplib.org
+  The LGPL components can be replaced by rebuilding the node from the public source above with your own
+  rapidsnark/GMP build (the build follows the circuits repository's Windows recipe plus the rust-rapidsnark patch listed in README.txt).
+
+bin\libgcc_s_seh-1.dll, bin\libstdc++-6.dll
+  GCC runtime libraries 16.2.0 (MSYS2 packages mingw-w64-x86_64-libgcc / libstdc++ 16.2.0-6, unmodified).
+  Licence: GPL-3.0 with the GCC Runtime Library Exception 3.1 (LICENSES\GPL-3.0.txt, LICENSES\gcc-runtime-library-exception-3.1.txt).
+  Source: https://gcc.gnu.org , https://github.com/msys2/MINGW-packages
+
+bin\libwinpthread-1.dll
+  mingw-w64 winpthreads (MSYS2 package mingw-w64-x86_64-libwinpthread 14.0.0.r426-2, unmodified).
+  Licence: MIT/BSD-style (LICENSES\winpthreads-COPYING.txt). Source: https://www.mingw-w64.org
+
+bin\lxpost.exe
+  Small helper built from the Logos blockchain crates (same licences as the node) plus the package's own code.

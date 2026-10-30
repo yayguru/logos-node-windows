@@ -1,0 +1,22 @@
+diff --git a/crates/src/lib.rs b/crates/src/lib.rs
+index 7c497b2..fa79817 100644
+--- a/crates/src/lib.rs
++++ b/crates/src/lib.rs
+@@ -158,6 +158,8 @@ fn buffer_len_with_null(size: c_ulonglong, name: &str) -> Result<usize> {
+ 
+ fn output_string(name: &str, buffer: &[u8], size: c_ulonglong) -> Result<String> {
+     let size = buffer_len(size, name)?;
++    // NUL-trim: older rapidsnark builds (Windows build) leave size = buffer capacity
++    let size = buffer[..size.min(buffer.len())].iter().position(|b| *b == 0).unwrap_or(size);
+     if size > buffer.len() {
+         return Err(anyhow::anyhow!(
+             "{name} output size {size} exceeds buffer size {}",
+@@ -332,7 +334,7 @@ pub fn groth16_verify_wrapper(proof: &str, inputs: &str, verification_key: &str)
+             inputs_cstr.as_ptr() as *const std::ffi::c_char,
+             verification_key_cstr.as_ptr() as *const std::ffi::c_char,
+             error_msg_ptr,
+-            error_msg.len() as u64,
++            error_msg.len() as std::ffi::c_ulong,
+         );
+         if result == 2 {
+             let error_string = std::ffi::CStr::from_ptr(error_msg_ptr)
