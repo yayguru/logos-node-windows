@@ -142,7 +142,7 @@ Yes, with these limits stated plainly:
   the release byte for byte (toolchain versions and timestamps are not pinned). Trust rests on the published hashes and the
   signed update manifest.
 - **Binaries are not code-signed** (no Authenticode certificate), so SmartScreen warns on first run.
-- **`lxpost.exe` in build 8 was built against the 0.3.2 node crates** (the transaction format it uses did not change in 0.3.4).
+- **`lxpost.exe` in builds 8 and 9 was built against the 0.3.2 node crates** (the transaction format it uses did not change in 0.3.4).
   It will be rebuilt against 0.3.4 in a later build.
 
 ## Help, bugs and ideas

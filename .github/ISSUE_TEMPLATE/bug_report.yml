@@ -12,7 +12,7 @@ body:
     attributes:
       label: Build
       description: First line of `version.txt`, or the output of `LogosNode.bat --version` (`LogosMiner.bat --version` on builds 1 to 8)
-      placeholder: "build 8 (v8)"
+      placeholder: "build 9 (v9)"
     validations:
       required: true
   - type: input

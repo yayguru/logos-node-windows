@@ -13,7 +13,7 @@ BAN=[('   _     ___   ____  ___  ____  ','  _   _  ___  ____  _____ ','cy','mg')
 def lines(full=True):
     L=[[]]
     for a,b,ca,cb in BAN: L.append([(a,ca),(b,cb)])
-    L.append([('        ',None),('for Windows','yl'),('  -  Logos testnet full node  -  v0.3.4 build 8','dg')])
+    L.append([('        ',None),('for Windows','yl'),('  -  Logos testnet full node  -  v0.3.4 build 9','dg')])
     L.append([('  '+'='*58,'db')])
     if not full: L.append([('  Mode: ','dcy'),('FULL NODE','gr'),('   Node: ','dcy'),('running','gr'),('   Mining: ','dcy'),('on','gr'),('   Threads: ','dcy'),('4','wh')])
     else: L.append([('  Mode: ','dcy'),('FULL NODE','gr'),('   Threads: ','dcy'),('4 of 8 CPU threads','wh'),('   Node: ','dcy'),('running','gr'),('   Mining: ','dcy'),('on','gr')])
