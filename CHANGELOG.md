@@ -4,6 +4,10 @@ Unofficial Windows build of the Logos blockchain node. Build numbers are this pr
 Builds 1 to 7 were released before this repository was public (build 6 was the first signed-update release).
 Times are approximate. Builds 1 to 7 bundle node 0.3.2.
 
+## Repository updates (no new build)
+- 2026-10-31: README picture and social preview image (mock-ups with example values), ASCII banner, a pinned
+  disclaimer, issue forms, a pull request checklist, supported versions in SECURITY.md.
+
 ## Build 8 (2026-10-31), node 0.3.4
 - Node `logos-blockchain-node` 0.3.4 (upstream tag `0.3.4`, commit `f7ab0323`), same one-line Windows patch as before.
 - An existing 0.3.2 `data\user_config.yaml` is converted on first start; the original is kept as `user_config.yaml.0.3.2.bak`.

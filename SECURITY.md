@@ -1,8 +1,16 @@
 # Security policy (logos-node-windows, unofficial)
 
+## Supported versions
+| Build | Node | Supported |
+|---|---|---|
+| 8 (latest) | 0.3.4 | Yes |
+| 6, 7 | 0.3.2 | Update with menu U |
+| 1 to 5 | 0.3.2 | No (no signed updater; download the latest release) |
+
 ## Reporting a vulnerability
 Please do **not** open a public issue for security problems. Use GitHub's private vulnerability reporting
-("Security" tab -> "Report a vulnerability") on this repository. Include steps to reproduce and the build number
+("Security" tab -> "Report a vulnerability", or
+[this link](https://github.com/yayguru/logos-node-windows/security/advisories/new)) on this repository. Include steps to reproduce and the build number
 (`version.txt`). We aim to answer within a few days.
 
 Problems in the Logos node itself should be reported to the upstream project:

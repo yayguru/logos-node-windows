@@ -22,7 +22,8 @@ SOFTWARE.
 
 --------------------------------------------------------------------------------
 Scope: this licence covers the files written for this project (app/panel.ps1,
-app/LogosMiner.bat, app/logos-miner.ini, the docs, update/*.py, build/0*.sh,
+app/LogosMiner.bat, app/logos-miner.ini, the docs (including docs/ and
+.github/), update/*.py, build/0*.sh,
 build/05-build-node.ps1). Other files keep their own licences:
 - lxpost/ is dual-licensed MIT OR Apache-2.0 (it links the logos-blockchain crates;
   lxpost/rust-toolchain.toml is copied from logos-blockchain).

@@ -8,6 +8,11 @@
 | `CONTRIBUTING.md` | How to contribute (PowerShell 5.1, ASCII, parse check, no secrets). |
 | `SECURITY.md` | How to report vulnerabilities and what the panel protects. |
 | `FILES.md` | This list. |
+| `docs/hero.png` | README picture: a mock-up of the panel with example values (no real data). |
+| `docs/social-preview.png` | 1280x640 image for the repository's social preview (Settings -> General -> Social preview). |
+| `docs/make-images.py` | Python/Pillow script that renders both images. |
+| `.github/ISSUE_TEMPLATE/*` | Issue forms (bug report, feature request) and links to security reporting and upstream. |
+| `.github/pull_request_template.md` | Checklist for pull requests. |
 | `.gitignore` | Keeps build output, node data, keys and local configs out of git. |
 | `app/LogosMiner.bat` | Double-click launcher (legacy name, kept for update compatibility): runs `panel.ps1` with Windows PowerShell and passes the command-line options through. |
 | `app/panel.ps1` | The panel: node setup and start/stop, config patching for node 0.3.4, mining control, claims, wallet, send/receive, inscriptions, signed updater and rollback. Embeds the update public key. |

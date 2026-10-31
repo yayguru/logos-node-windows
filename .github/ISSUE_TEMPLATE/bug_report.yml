@@ -1,0 +1,59 @@
+name: Bug report
+description: Something in the Windows build or the panel does not work
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. **Never paste `data\keystore.yaml`, `data\user_config.yaml`, private keys or seeds.**
+        This is an unofficial community build, not supported by the Logos project.
+  - type: input
+    id: build
+    attributes:
+      label: Build
+      description: First line of `version.txt`, or the output of `LogosMiner.bat --version`
+      placeholder: "build 8 (v8)"
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      placeholder: "Windows 11 23H2 x64"
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Mode
+      options: [Full node, Mine only, Not started yet]
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+      description: Include the menu key or command-line option you used.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Start LogosMiner.bat
+        2. Press ...
+  - type: textarea
+    id: log
+    attributes:
+      label: Log tail (menu 9)
+      description: Last lines of the node log. Remove anything you consider private (addresses, IPs) first.
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I removed keys, seeds and config contents from this report.
+          required: true
+        - label: I downloaded the release from this repository and the SHA-256 matched.

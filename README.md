@@ -1,5 +1,9 @@
 # Logos Node for Windows (unofficial)
 
+<p align="center">
+  <img src="docs/hero.png" alt="Logos Node for Windows: the menu-driven control panel (mock-up with example values)" width="820">
+</p>
+
 [![Release](https://img.shields.io/github/v/release/yayguru/logos-node-windows?label=release)](https://github.com/yayguru/logos-node-windows/releases/latest)
 [![Node](https://img.shields.io/badge/logos--blockchain--node-0.3.4-blue)](https://github.com/logos-blockchain/logos-blockchain/releases/tag/0.3.4)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20x64-informational)
@@ -7,14 +11,32 @@
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 ![Status](https://img.shields.io/badge/status-unofficial%20community%20build-lightgrey)
 
+> [!WARNING]
+> **Unofficial community build for the Logos testnet.** Not affiliated with, endorsed by or supported by the Logos project,
+> IFT or the logos-blockchain maintainers. Provided "as is", without warranty. Testnet coins have no guaranteed value and the
+> network may be reset. Only download releases from this repository's [Releases page](https://github.com/yayguru/logos-node-windows/releases)
+> and check the SHA-256. See [Disclaimer](#disclaimer).
+
+```
+   _     ___   ____  ___  ____    _   _  ___  ____  _____
+  | |   / _ \ / ___|/ _ \/ ___|  | \ | |/ _ \|  _ \| ____|
+  | |  | | | | |  _| | | \___ \  |  \| | | | | | | |  _|
+  | |__| |_| | |_| | |_| |___) | | |\  | |_| | |_| | |___
+  |_____\___/ \____|\___/|____/  |_| \_|\___/|____/|_____|
+        for Windows  -  native full node, no WSL, no Docker
+```
+
+**[Download the latest release](https://github.com/yayguru/logos-node-windows/releases/latest)** |
+[Install](#install-users) | [Features](#features) | [Updates](#how-updates-work-signed-manifest) |
+[Security](SECURITY.md) | [Build from source](#build-from-source) | [Changelog](CHANGELOG.md)
+
 An **unofficial, community-made native Windows build of the Logos blockchain full node** (no WSL, no Docker), packaged
 with a menu-driven control panel. It runs a real full node: it syncs and validates the chain, takes part in the P2P
 network and can optionally mine, claim rewards, send/receive coins and inscribe data. Updates are signed and verified.
 
 Unzip, double-click `LogosMiner.bat`, and pick **full node** or **mine only** (outbound-only node, no admin rights).
 
-> **Unofficial. Not affiliated with, endorsed by or supported by the Logos project, IFT or the logos-blockchain
-> maintainers.** The node itself is the upstream open-source `logos-blockchain-node`, built for Windows from the
+> The node itself is the upstream open-source `logos-blockchain-node`, built for Windows from the
 > upstream tag with one small portability patch (see [Build from source](#build-from-source)). "Logos" is used only to
 > say what the software is compatible with. For official software and support, see
 > [logos-blockchain/logos-blockchain](https://github.com/logos-blockchain/logos-blockchain).
@@ -111,6 +133,13 @@ Yes, with these limits stated plainly:
 - **Binaries are not code-signed** (no Authenticode certificate), so SmartScreen warns on first run.
 - **`lxpost.exe` in build 8 was built against the 0.3.2 node crates** (the transaction format it uses did not change in 0.3.4).
   It will be rebuilt against 0.3.4 in a later build.
+
+## Help, bugs and ideas
+- Bugs and feature requests: [open an issue](https://github.com/yayguru/logos-node-windows/issues/new/choose) (please include the build
+  number from `version.txt` and the last lines of the log from menu 9, **never** your `data\keystore.yaml` or `data\user_config.yaml`).
+- Security problems: report them privately, see [SECURITY.md](SECURITY.md).
+- Problems in the node itself: [upstream logos-blockchain](https://github.com/logos-blockchain/logos-blockchain/issues).
+- Contributing: see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Licence
 The project code is under the [MIT licence](LICENSE). `lxpost/` is MIT OR Apache-2.0. Release zips also contain the upstream node
