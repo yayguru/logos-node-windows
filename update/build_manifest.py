@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-# Builds a signed LogosMiner update manifest.
-# usage: build_manifest.py <stage LogosMiner dir> <build number> <name> <out dir> "<notes>"
+# Builds a signed Logos Node for Windows update manifest.
+# usage: build_manifest.py <stage LogosNode dir> <build number> <name> <out dir> "<notes>"
 #        env SIGNING_KEY=<path to the RSA private key PEM> (required, kept OUTSIDE the repository), NODE_VER=<node version>
 # Writes <out>/manifest.json, <out>/manifest.sig (base64 RSA PKCS#1 v1.5 SHA-256 over the exact manifest bytes) and
 # one copy of every updatable file (files > 20 MB are split into .partNN chunks). Also rewrites <stage>/version.txt.
@@ -25,6 +25,8 @@ for r in rels:
     else:
         open(os.path.join(out, fn), 'wb').write(b); e['url'] = fn
     files.append(e)
+# 'app' stays 'LogosMiner' on purpose: installed panels of builds 6-8 reject a manifest with any other app id, so
+# changing it would silently stop their updates. Panels from build 9 accept both 'LogosMiner' and 'LogosNode'.
 m = {'app': 'LogosMiner', 'build': build, 'name': name, 'node': os.environ.get('NODE_VER', '0.3.4'), 'notes': notes, 'files': files}
 mb = json.dumps(m, indent=1).encode()
 open(os.path.join(out, 'manifest.json'), 'wb').write(mb)

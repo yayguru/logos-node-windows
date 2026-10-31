@@ -3,7 +3,8 @@
 ## Supported versions
 | Build | Node | Supported |
 |---|---|---|
-| 8 (latest) | 0.3.4 | Yes |
+| 9 (latest) | 0.3.4 | Yes |
+| 8 | 0.3.4 | Update with menu U |
 | 6, 7 | 0.3.2 | Update with menu U |
 | 1 to 5 | 0.3.2 | No (no signed updater; download the latest release) |
 
@@ -23,7 +24,7 @@ https://github.com/logos-blockchain/logos-blockchain
 - Updates are accepted only if `manifest.json` carries a valid RSA-3072 (PKCS#1 v1.5, SHA-256) signature made with the
   maintainers' offline key, matching the public key embedded in `panel.ps1` (same key as `update/update_pub.pem`).
   Every downloaded file must match its SHA-256 from the signed manifest, and only `panel.ps1`, `README.txt`,
-  `version.txt` and `bin\*.exe|dll` can ever be replaced. `LogosMiner.bat`, `logos-miner.ini` and `data\` are never touched.
+  `version.txt` and `bin\*.exe|dll` can ever be replaced. `LogosNode.bat`/`LogosMiner.bat`, `logos-node.ini`/`logos-miner.ini` and `data\` are never touched.
   Update URLs must be `https://` (or `file:///` for local testing).
 
 ## Out of scope / known limits

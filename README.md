@@ -34,26 +34,27 @@ An **unofficial, community-made native Windows build of the Logos blockchain ful
 with a menu-driven control panel. It runs a real full node: it syncs and validates the chain, takes part in the P2P
 network and can optionally mine, claim rewards, send/receive coins and inscribe data. Updates are signed and verified.
 
-Unzip, double-click `LogosMiner.bat`, and pick **full node** or **mine only** (outbound-only node, no admin rights).
+Unzip, double-click `LogosNode.bat`, and pick **full node** or **mine only** (outbound-only node, no admin rights).
 
 > The node itself is the upstream open-source `logos-blockchain-node`, built for Windows from the
 > upstream tag with one small portability patch (see [Build from source](#build-from-source)). "Logos" is used only to
 > say what the software is compatible with. For official software and support, see
 > [logos-blockchain/logos-blockchain](https://github.com/logos-blockchain/logos-blockchain).
 
-Current release: **build 8**, bundling `logos-blockchain-node` **0.3.4** (upstream tag `0.3.4`, commit `f7ab0323`).
+Current release: **build 9**, bundling `logos-blockchain-node` **0.3.4** (upstream tag `0.3.4`, commit `f7ab0323`).
 See [CHANGELOG.md](CHANGELOG.md).
 
-> **Naming note.** The project started as "LogosMiner". The launcher (`LogosMiner.bat`), settings file
-> (`logos-miner.ini`), zip name and update manifest still use that legacy name so existing installs keep updating.
-> They will be renamed in a later build with a migration step.
+> **Naming note.** Builds 1 to 8 were called "LogosMiner". Build 9 renames the launcher to `LogosNode.bat`, the settings
+> file to `logos-node.ini` and the zip to `LogosNode-win64-<version>.zip`. Existing installs are migrated in place by the
+> panel (see [Upgrading from LogosMiner](#upgrading-from-logosminer-builds-6-to-8)). The update manifest keeps
+> `"app": "LogosMiner"` and its URL so that installed build 6 to 8 panels keep receiving updates.
 
 ## What is in the zip
 | Component | Source | Licence |
 |---|---|---|
 | `bin\logos-blockchain-node.exe` | upstream node, tag `0.3.4`, built with MinGW-w64 | MIT OR Apache-2.0 (statically links rapidsnark and GMP, LGPL-3.0) |
 | `bin\lxpost.exe` | [`lxpost/`](lxpost) in this repo: builds and signs transfers and inscriptions locally | MIT OR Apache-2.0 |
-| `panel.ps1`, `LogosMiner.bat`, `logos-miner.ini` | [`app/`](app) in this repo | MIT |
+| `panel.ps1`, `LogosNode.bat`, `logos-node.ini` | [`app/`](app) in this repo | MIT |
 | MinGW runtime DLLs | MSYS2 / GCC | GPL-3.0 with GCC Runtime Library Exception, winpthreads licence |
 
 ## Features
@@ -71,17 +72,26 @@ See [CHANGELOG.md](CHANGELOG.md).
 - Hardening: the REST API is on 127.0.0.1 only, CORS is pinned to loopback, and `data\` is locked by ACL to your user, SYSTEM and Administrators.
 
 ## Install (users)
-1. Download `LogosMiner-win64-<version>.zip` from the Releases page and compare its SHA-256 with the published `SHA256SUMS`.
-2. Unzip anywhere (for example `C:\LogosMiner`) and double-click `LogosMiner.bat`.
+1. Download `LogosNode-win64-<version>.zip` from the Releases page and compare its SHA-256 with the published `SHA256SUMS`.
+2. Unzip anywhere (for example `C:\LogosNode`) and double-click `LogosNode.bat`.
 3. Choose `1` (full node) or `2` (mine only). On first start a new node identity and keystore are created in `data\`.
    **Back up `data\keystore.yaml` and never share it.**
 4. SmartScreen will warn because the binaries are not code-signed: "More info" -> "Run anyway", but only for a zip you verified.
 
 See [`app/README.txt`](app/README.txt) for the full user guide, which also ships inside the zip.
 
+### Upgrading from LogosMiner (builds 6 to 8)
+Use menu U (or `LogosMiner.bat --update`). Nothing has to be renamed by hand:
+- The folder (for example `C:\LogosMiner`), `LogosMiner.bat`, `logos-miner.ini` and `data\` are left exactly as they are.
+- On its first run the build 9 panel adds `LogosNode.bat` next to `LogosMiner.bat`; both start the same panel.
+- The panel keeps using `logos-miner.ini` when that is the only settings file (the status screen shows which file is used).
+  It never renames, copies or rewrites it, so a rollback to build 8 keeps working.
+- If both files exist (for example the new zip was unzipped over an old folder), `logos-miner.ini` wins unless
+  `logos-node.ini` was edited (differs from the shipped defaults).
+
 ## How updates work (signed manifest)
 - The panel fetches `manifest.json` and `manifest.sig` from the update URL. The default is the project's release host; it can be changed with
-  `update_url=` in `logos-miner.ini` (`https://` only, or `file:///` for local tests).
+  `update_url=` in `logos-node.ini` (or `logos-miner.ini` on older installs; `https://` only, or `file:///` for local tests).
 - `manifest.sig` is a base64 **RSA-3072 PKCS#1 v1.5 / SHA-256** signature over the exact bytes of `manifest.json`. The panel
   checks it against the public key embedded in `panel.ps1` and refuses the update if it does not match.
 - The manifest lists `path`, `sha256`, `size` and a `url` (or 20 MB `parts`) for each file. The panel only accepts paths matching
@@ -89,7 +99,8 @@ See [`app/README.txt`](app/README.txt) for the full user guide, which also ships
 - An update only installs if its `build` number is higher than the installed `version.txt`.
 - The old files go to `update\backup-<time>\`. If the node does not come back within a few minutes, they are restored.
   Build 8 also saves a copy of the config with each backup and restores it on rollback.
-- `LogosMiner.bat`, `logos-miner.ini` and `data\` (keys, chain) are never changed by an update.
+- The launcher (`LogosNode.bat` / `LogosMiner.bat`), the settings file (`logos-node.ini` / `logos-miner.ini`) and `data\` (keys, chain)
+  are never changed by an update. The manifest path allowlist cannot reach them.
 
 ### Verify a release yourself (public key only)
 ```

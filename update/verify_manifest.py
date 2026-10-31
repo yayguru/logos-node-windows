@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-# Verifies a LogosMiner update directory with the PUBLIC key only.
+# Verifies a Logos Node for Windows update directory with the PUBLIC key only.
 # usage: verify_manifest.py <dir with manifest.json + manifest.sig + files> [public key PEM, default: update_pub.pem next to this script]
 # Checks: RSA-3072 PKCS#1 v1.5 SHA-256 signature over the exact manifest.json bytes, the path allowlist the panel enforces,
 # and the SHA-256/size of every file (or every part) listed in the manifest.

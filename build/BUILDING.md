@@ -13,7 +13,7 @@ MinGW `ar` archives. Both only link cleanly with the MinGW toolchain.
 | 3 | `04-node-source.sh` | logos-blockchain at tag `0.3.4`; rust-rapidsnark at the rev pinned in `Cargo.lock` (`e91187f8`) plus `patches/rust-rapidsnark-windows.patch`; a `[patch]` entry in the workspace `Cargo.toml`. |
 | 4 | `05-build-node.ps1` | Env: `RAPIDSNARK_LIB_DIR`, `LBC_ROOT_DIR`, `LIBCLANG_PATH`, `RUSTFLAGS=-L native=C:/msys64/lib -l static=mman`. About 30 min on a 4-core laptop. |
 | 5 | `06-build-lxpost.sh` | Path dependencies on `../logos-blockchain` (put this repo and the node checkout side by side). |
-| 6 | `07-pack.sh` | Copies `app/`, the binaries and the MinGW runtime DLLs (`libgcc_s_seh-1.dll`, `libstdc++-6.dll`, `libwinpthread-1.dll` from `C:\msys64\mingw64\bin`, unmodified) into `LogosMiner/`, then zips it. With `SIGNING_KEY=...` it also writes and verifies the signed update folder. |
+| 6 | `07-pack.sh` | Copies `app/`, the binaries and the MinGW runtime DLLs (`libgcc_s_seh-1.dll`, `libstdc++-6.dll`, `libwinpthread-1.dll` from `C:\msys64\mingw64\bin`, unmodified) into `LogosNode/`, then zips it. With `SIGNING_KEY=...` it also writes and verifies the signed update folder. |
 
 Check the result: `logos-blockchain-node.exe --version` should print the tag's version.
 Unpatched rapidsnark at that pin makes the node panic with `ProofGeneration(Json(Error("trailing characters" ...)))` when it

@@ -1,13 +1,46 @@
-# Logos testnet one-click panel (native Windows). No keys/IPs hardcoded.
+# Logos Node for Windows - one-click panel for the Logos blockchain full node (testnet). Unofficial; not affiliated with the Logos team.
+# No keys/IPs hardcoded.
 $ErrorActionPreference = 'Continue'
 $Root = $PSScriptRoot
-$Ini  = Join-Path $Root 'logos-miner.ini'
+# Settings file. Build 9 renamed the product from "LogosMiner" to "Logos Node": new installs use logos-node.ini.
+# Older installs (build 6-8) keep their logos-miner.ini: it is still read and written, never renamed or copied, so nothing changes for them.
+# If BOTH files exist (e.g. a new zip was unpacked over an old folder), the old one wins unless logos-node.ini was edited
+# (an unedited logos-node.ini equals the shipped defaults, so it must not hide the old file's claim key, threads or ports).
+$IniNew = Join-Path $Root 'logos-node.ini'; $IniOld = Join-Path $Root 'logos-miner.ini'
+$DefaultIniText = @'
+; Logos Node for Windows - settings (edit freely, or use the panel)
+; mode = full  -> full node: listens for peers on net_port (firewall rule added), optional public address
+; mode = mine  -> mine only: outbound-only node, nothing opened to the internet
+; threads = auto (half of your CPU threads) or a number; mining speed depends on CPU threads, not RAM
+mode=mine
+threads=auto
+; local REST API of the node (panel talks to it)
+api=127.0.0.1:8080
+net_port=3000
+; optional, full mode only: your public IP or domain, e.g. node.example.com
+external_address=
+; optional: public key to auto-claim mining rewards to (leave empty = claim manually)
+claim_public_key=
+; optional: where the Update menu looks for new versions (leave empty = the official address). https:// only.
+update_url=
+; bootstrap peers (comma separated multiaddrs). Default = public Logos testnet bootstrap nodes.
+peers=/ip4/65.109.51.37/udp/3000/quic-v1/p2p/12D3KooWFrouXfmrR4nsLMtE7wu15DoMJ6VtoUtHinREZCvbWHar,/ip4/65.109.51.37/udp/3001/quic-v1/p2p/12D3KooWJRGau8M1rjT7R5e4YYsgdFhsMX35nRDtMwCDjxQkXAHz,/ip4/65.109.51.37/udp/3002/quic-v1/p2p/12D3KooWQXJavMDTRscjauFSgVAB1VLB6Rzpy2uY5SU9Tk7927tb,/ip4/65.109.51.37/udp/50001/quic-v1/p2p/12D3KooWSQc7CcGtvWDPF1yCbBthFnQjprfCVHmfmNDUrSmqQsU1
+'@
+function Ini-Norm([string]$t) { (($t -replace "`r", '') -split "`n" | % { $_.Trim() } | ? { $_ }) -join "`n" }
+function Pick-Ini {
+  $n = Test-Path -LiteralPath $IniNew; $o = Test-Path -LiteralPath $IniOld
+  if ($n -and $o) { try { if ((Ini-Norm ([IO.File]::ReadAllText($IniNew))) -eq (Ini-Norm $DefaultIniText)) { return $IniOld } } catch { return $IniOld }; return $IniNew }
+  if ($n) { return $IniNew }; if ($o) { return $IniOld }; $IniNew
+}
+$Ini  = Pick-Ini
+$IniName = Split-Path $Ini -Leaf
+$Launcher = 'LogosNode.bat'
 $Exe  = Join-Path $Root 'bin\logos-blockchain-node.exe'
 $Data = Join-Path $Root 'data'
 $Ucfg = Join-Path $Data 'user_config.yaml'
 $Log  = Join-Path $Data 'node.log'
 $env:Path = (Join-Path $Root 'bin') + ';' + $env:Path
-$BuildNo = 8; $BuildName = 'v8'          # bumped on every release; the updater compares this number with the manifest
+$BuildNo = 9; $BuildName = 'v9'          # bumped on every release; the updater compares this number with the manifest
 $PauseFile = Join-Path $Data 'mining.paused' # exists = you pressed "Stop mining" (menu 5); the background helper then leaves mining off
 
 # CPU facts. Mining speed is limited by CPU threads, NOT by RAM (a thread needs very little memory).
@@ -68,7 +101,22 @@ function Can-Heal { $n = 0; if (Test-Path $HealLog) { $n = @(Get-Content $HealLo
 function Note-Heal { Add-Content $HealLog (Get-Date -Format s) }
 function Local-Time($line) { try { if (($line -replace '\x1b\[[0-9;]*m','') -match '^(\S+Z)') { return [DateTimeOffset]::Parse($Matches[1]).ToLocalTime().ToString('HH:mm') } } catch {}; '?' }
 function Pow-Started-At { $l = Select-String -Path $Log -SimpleMatch -Pattern 'PoW mining started' -ErrorAction SilentlyContinue | select -Last 1; if ($l) { Local-Time $l.Line } else { '' } }
-function Start-Detached($argline) { Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{CommandLine="powershell -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$PSCommandPath`" $argline"} | Out-Null }
+# Starts a background helper of this panel (--start / --arm / --restart) that keeps running when the panel window closes.
+# Build 9 fix: the helper's console window is now CREATED hidden (Win32_ProcessStartup ShowWindow = 0). Before, it appeared for a
+# moment, took the keyboard focus and then hid itself while still holding the focus, so the panel ignored every key and
+# "press Enter" seemed to do nothing (seen after menu U and after a start from the menu).
+function Start-Detached($argline) {
+  $cl = "powershell -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$PSCommandPath`" $argline"
+  $si = $null; try { $si = New-CimInstance -ClassName Win32_ProcessStartup -ClientOnly -Property @{ ShowWindow = [uint16]0 } -ErrorAction Stop } catch {}
+  if ($si) { Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = $cl; ProcessStartupInformation = $si } | Out-Null }
+  else { Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = $cl } | Out-Null }
+  Focus-Panel
+}
+# Gives the keyboard focus back to this panel window. Only in the interactive menu (never from a hidden helper).
+function Focus-Panel {
+  if (-not $script:MenuMode) { return }
+  try { Start-Sleep -Milliseconds 300; [void](New-Object -ComObject WScript.Shell).AppActivate($PID) } catch {}
+}
 function Arm-Write($t) {
   $f = Join-Path $Data 'arm.log'
   Add-Content $f "$(Get-Date -Format s) $t"
@@ -222,7 +270,7 @@ function Patch-Config($c) {
     }
   }
   Yaml-Save $Ucfg $L
-  if (-not $ok) { Write-Host 'Note: data\user_config.yaml has a layout this panel does not edit; some settings from logos-miner.ini were not applied.' -ForegroundColor Yellow }
+  if (-not $ok) { Write-Host "Note: data\user_config.yaml has a layout this panel does not edit; some settings from $IniName were not applied." -ForegroundColor Yellow }
 }
 
 function Strip-Ansi($t) { $t -replace "\x1b\[[0-9;]*m", '' }
@@ -239,9 +287,9 @@ function Show-StartFailure($np, $c) {
   if ($errTxt -match '1314|symlink') {
     Say 'Plain English: Windows did not allow the node to create a shortcut (symlink) for its log file. This needs special rights that normal accounts do not have. This package already turns that log file off, so if you still see this your config was not updated.' Yellow
     Say 'Fix: restart this panel and choose Start again, or run it once as Administrator (or turn on Developer Mode in Windows Settings > For developers).' Yellow; $elev = $true }
-  elseif ($errTxt -match '10048|in use|Address already|AddrInUse|only one usage') { Say 'Plain English: another program (or another copy of the node) is already using the port. Close the other node, or change api/net_port in logos-miner.ini, then start again.' Yellow }
-  elseif ($errTxt -match 'Access is denied|os error 5\b|code: 5,') { Say 'Plain English: Windows denied access to a file or folder. Move the LogosMiner folder somewhere you own (for example your Desktop or Documents) or run once as Administrator.' Yellow; $elev = $true }
-  elseif ($errTxt -match 'unknown field|missing field|invalid type|did not find expected|while parsing') { Say 'Plain English: the node could not read data\user_config.yaml. If you went back to an older LogosMiner build, its node cannot read the file that node 0.3.4 converted: use Update menu > roll back, or rename data\user_config.yaml.0.3.2.bak to user_config.yaml.' Yellow }
+  elseif ($errTxt -match '10048|in use|Address already|AddrInUse|only one usage') { Say "Plain English: another program (or another copy of the node) is already using the port. Close the other node, or change api/net_port in $IniName, then start again." Yellow }
+  elseif ($errTxt -match 'Access is denied|os error 5\b|code: 5,') { Say 'Plain English: Windows denied access to a file or folder. Move this folder (the one with panel.ps1) somewhere you own (for example your Desktop or Documents) or run once as Administrator.' Yellow; $elev = $true }
+  elseif ($errTxt -match 'unknown field|missing field|invalid type|did not find expected|while parsing') { Say 'Plain English: the node could not read data\user_config.yaml. If you went back to an older build, its node cannot read the file that node 0.3.4 converted: use Update menu > roll back, or rename data\user_config.yaml.0.3.2.bak to user_config.yaml.' Yellow }
   elseif ($errTxt -match 'keystore|decrypt|password') { Say 'Plain English: the node could not read its keystore (data\keystore.yaml). Do not delete it - it holds your keys. Restore it from your backup if it is damaged.' Yellow }
   elseif ($errTxt -match '0xc000|STATUS_DLL|not a valid Win32|libstdc|libwinpthread|libgcc') { Say 'Plain English: Windows could not load the node program or one of its DLLs. Re-extract the whole zip (keep the bin folder together) and check that antivirus did not quarantine a file.' Yellow }
   else { Say 'Unknown cause. The lines above are the node own error message; send them to whoever supports you.' Yellow }
@@ -262,10 +310,10 @@ function Port-Conflicts($c) {   # -> list of plain-English problems (empty = all
     $out = @()
     if ($haveCmd) {
       $l = @(Get-NetTCPConnection -State Listen -LocalPort $apiPort -ErrorAction SilentlyContinue)
-      if ($l.Count) { $out += "TCP port $apiPort (api= in logos-miner.ini) is already used by $(Port-Owner $l[0].OwningProcess)" }
+      if ($l.Count) { $out += "TCP port $apiPort (api= in $IniName) is already used by $(Port-Owner $l[0].OwningProcess)" }
       foreach ($u in $udp) { $e = @(Get-NetUDPEndpoint -LocalPort $u -ErrorAction SilentlyContinue); if ($e.Count) { $out += "UDP port $u (node P2P/Blend port) is already used by $(Port-Owner $e[0].OwningProcess)" } }
     } else {
-      try { $t = New-Object Net.Sockets.TcpListener ([Net.IPAddress]::Loopback, $apiPort); $t.Start(); $t.Stop() } catch { $out += "TCP port $apiPort (api= in logos-miner.ini) is already in use" }
+      try { $t = New-Object Net.Sockets.TcpListener ([Net.IPAddress]::Loopback, $apiPort); $t.Start(); $t.Stop() } catch { $out += "TCP port $apiPort (api= in $IniName) is already in use" }
       foreach ($u in $udp) { try { $s = New-Object Net.Sockets.UdpClient ($u); $s.Close() } catch { $out += "UDP port $u (node P2P/Blend port) is already in use" } }
     }
     if (-not $out.Count) { return @() }
@@ -281,7 +329,7 @@ function Start-Node {
   if (Node-Proc) { Write-Host 'Node already running.' } else {
     $pc = @(Port-Conflicts $c)
     if ($pc.Count) { Write-Host 'Cannot start the node: a port it needs is already taken.' -ForegroundColor Red; $pc | % { Write-Host "  - $_" -ForegroundColor Yellow }
-      Say 'Fix: close the other program (if it is another Logos node or another LogosMiner folder, stop that one first), or pick free ports with api= / net_port= in logos-miner.ini. Nothing was started.' Yellow; return }
+      Say "Fix: close the other program (if it is another Logos node or another copy of this folder, stop that one first), or pick free ports with api= / net_port= in $IniName. Nothing was started." Yellow; return }
     Patch-Config $c
     $was032 = Cfg-Is032
     if ($was032) { Say 'First start with node 0.3.4: it converts data\user_config.yaml to its new, shorter format (the old file is kept as data\user_config.yaml.0.3.2.bak).' Cyan }
@@ -290,9 +338,9 @@ function Start-Node {
     if ($chkCode -ne 0) {
       Write-Host 'Cannot start the node: it could not read data\user_config.yaml.' -ForegroundColor Red
       @((Strip-Ansi $chk) -split "\r?\n" | ? { $_.Trim() } | select -Last 8) | % { Write-Host "  $_" -ForegroundColor Gray }
-      Say 'If you just went back to an older LogosMiner build: use Update menu > roll back (it also puts the matching config back), or rename data\user_config.yaml.0.3.2.bak to user_config.yaml.' Yellow
+      Say 'If you just went back to an older build: use Update menu > roll back (it also puts the matching config back), or rename data\user_config.yaml.0.3.2.bak to user_config.yaml.' Yellow
       return }
-    if ($was032) { Patch-Config $c }   # re-apply logos-miner.ini on the converted file
+    if ($was032) { Patch-Config $c }   # re-apply the .ini settings on the converted file
     $nargs = @('user_config.yaml')
     if ($c.mode -eq 'full') {
       if (-not (Get-NetFirewallRule -Name LogosNodeP2P -ErrorAction SilentlyContinue)) {
@@ -404,14 +452,14 @@ function Claim-Rewards {
     try { $res.text | ConvertFrom-Json | ConvertTo-Json -Depth 6 | % { Write-Host "    $_" -ForegroundColor White } } catch { Write-Host "    $($res.text)" -ForegroundColor White }
   }
   $addr = $c.claim_public_key
-  if ($addr) { Say "  Pay to claim_public_key from logos-miner.ini: $addr" DarkCyan }
+  if ($addr) { Say "  Pay to claim_public_key from ${IniName}: $addr" DarkCyan }
   else {
-    Say '  No claim_public_key set in logos-miner.ini. Default = this node''s own reward key (auto-claim target).' Yellow
+    Say "  No claim_public_key set in $IniName. Default = this node's own reward key (auto-claim target)." Yellow
     $in = Read-Host '  Press Enter for the default, or paste a 64-hex PUBLIC key to pay to'
     if ($in) {
       if ($in -match '^[0-9a-fA-F]{64}$') {
         $addr = $in
-        if ((Read-Host '  Save this public key into logos-miner.ini? y/N') -eq 'y') { $c.claim_public_key = $addr; Save-Cfg $c; Say '  Saved (public key only).' Green }
+        if ((Read-Host "  Save this public key into $IniName? y/N") -eq 'y') { $c.claim_public_key = $addr; Save-Cfg $c; Say '  Saved (public key only).' Green }
       } else { Say '  Not a valid 64-hex public key - using the default.' Red }
     }
   }
@@ -448,6 +496,7 @@ function Status {
   Say '  ---- STATUS ----' Cyan
   $upm = 0
   if ($p) { $upm = Node-Up-Min; Kv 'Node' "running (pid $($p.Id)), up $upm min" Green } else { Kv 'Node' 'stopped' Red }
+  Kv 'Settings' "$IniName$(if ($IniName -eq 'logos-miner.ini') { '  (name from older builds; still used, nothing to do)' })" DarkGray
   Kv 'Threads' "$($c.threads) configured, $(if ($p) { (Run-Threads) } else { '-' }) used by the running node  (this PC has $([Environment]::ProcessorCount) CPU threads / $(Cpu-Cores) cores)" White
   $i = Api '/cryptarchia/info' 'GET' 15
   $online = $false
@@ -565,7 +614,7 @@ function Show-Balance {
   if ($c.claim_public_key) {
     if ($c.claim_public_key -ne $pk) {
       Write-Host ''
-      Kv 'Payout key' "$($c.claim_public_key)   (claim_public_key in logos-miner.ini)" White
+      Kv 'Payout key' "$($c.claim_public_key)   (claim_public_key in $IniName)" White
       $b2 = Get-Balance $c.claim_public_key
       if ($b2.ok) { Kv 'Balance' "$(Fmt $b2.bal) base units   (rewards claimed with menu C go here; this node cannot spend it unless it owns that key)" Gray }
       Kv 'Explorer' "$Explorer/#/addr/$($c.claim_public_key)" DarkGray
@@ -1232,13 +1281,13 @@ function Set-Mining([bool]$on) {
 
 # ======================= UPDATE (experimental, v6) =======================
 # Signed manifest: manifest.json + manifest.sig (RSA-3072 / SHA-256, public key below). Files are downloaded to update\stage, checked against
-# the sha256 in the manifest, the old files are backed up to update\backup-*, then swapped in. data\ (keys, chain, config), logos-miner.ini are never touched.
+# the sha256 in the manifest, the old files are backed up to update\backup-*, then swapped in. data\ (keys, chain, config) and the .ini settings file are never touched.
 $DefaultUpdateUrl = 'https://logos.ulti.mom/miner/manifest.json'
 $UpdPubMod = 'e47a89cfe99ef87dce43d0200bfbe353a1ed1c691ea778abe25011ea2be39e8b2dcc5d2b917a871d63f65670bfb8ae67350a102924b777c0335dc476fe3f1a30c6c02a97cfb95920d67c0e529eaf2dec53e0a2ae742ab2db7494efdb3e8aa73ef772d9390a233452d4d21316b61e1f254560ce32057a13dcfdb642eabcb39c7dab2f94945e272b79bdb4633fce09dc3b851a8d175668d9d8cc40a8b6277ef7dcd9d5928ab08f88f3e9b804e31f796cb9beef2ade71d4a54f931b79ea8ace0bf7154a81a86224eac5ded46aab5b19ad316b5967aac6bcbf4af6c8ed92822a7c541d5ce231991c346c69f318b534f20aeffd401e9c9cbfc1c179076ec18ed28c92735ce97bf3de4a83c84afd87607c0c10c1fb303da7991ebfa59f5c4a6a72fddc9176dc32d080826213e48538c20c16ec4600af05cdd54c79ec17530cb585ed652b554e4d7a2c641937017d42db40e0b6b6c8c203f602c6cde13d1820cabbb92434cfe2631e8edb1b6aebff9b787dcde457e8cf0f435c1e93d856f17d714fb82b'
 $UpdPubExp = '010001'
 $UpdDir = Join-Path $Root 'update'
 $UpdLog = Join-Path $UpdDir 'update.log'
-$UpdOkPath = '^(panel\.ps1|README\.txt|version\.txt|bin/[A-Za-z0-9._+-]+\.(exe|dll))$'    # LogosMiner.bat and logos-miner.ini are never replaced
+$UpdOkPath = '^(panel\.ps1|README\.txt|version\.txt|bin/[A-Za-z0-9._+-]+\.(exe|dll))$'    # the .bat launchers and the .ini settings file are never replaced
 function Upd-Log($t) { New-Item -ItemType Directory -Force $UpdDir | Out-Null; Add-Content $UpdLog "$(Get-Date -Format s) $t" }
 function Hex2Bytes([string]$h) { $b = New-Object byte[] ($h.Length / 2); for ($i=0; $i -lt $b.Length; $i++) { $b[$i] = [Convert]::ToByte($h.Substring(2*$i,2),16) }; $b }
 function File-Sha([string]$f) { (Get-FileHash -LiteralPath $f -Algorithm SHA256).Hash.ToLower() }
@@ -1249,7 +1298,7 @@ function Fetch-File([string]$url, [string]$dest) {
   [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
   Add-Type -AssemblyName System.Net.Http
   $hc = New-Object System.Net.Http.HttpClient; $hc.Timeout = [TimeSpan]::FromMinutes(20)
-  $hc.DefaultRequestHeaders.UserAgent.ParseAdd('LogosMiner-updater/' + $BuildNo)
+  $hc.DefaultRequestHeaders.UserAgent.ParseAdd('LogosNode-updater/' + $BuildNo)
   $resp = $hc.GetAsync($url, [System.Net.Http.HttpCompletionOption]::ResponseHeadersRead).GetAwaiter().GetResult()
   if (-not $resp.IsSuccessStatusCode) { throw "HTTP $([int]$resp.StatusCode) for $url" }
   $fs = [IO.File]::Create($dest)
@@ -1276,9 +1325,9 @@ function Get-Manifest([string]$url) {
   $mb = [IO.File]::ReadAllBytes("$t.json")
   $sigTxt = ([IO.File]::ReadAllText("$t.sig")).Trim()
   try { $sb = [Convert]::FromBase64String($sigTxt) } catch { return @{ ok=$false; msg='the manifest signature file is damaged' } }
-  if (-not (Verify-Sig $mb $sb)) { return @{ ok=$false; msg='SIGNATURE CHECK FAILED - the manifest is not signed by the Logos Miner release key. Update refused.' } }
+  if (-not (Verify-Sig $mb $sb)) { return @{ ok=$false; msg='SIGNATURE CHECK FAILED - the manifest is not signed by the Logos Node for Windows release key. Update refused.' } }
   try { $m = ([Text.Encoding]::UTF8.GetString($mb)).TrimStart([char]0xFEFF) | ConvertFrom-Json } catch { return @{ ok=$false; msg='manifest is not valid JSON' } }
-  if ($m.app -ne 'LogosMiner' -or -not $m.build -or -not $m.files) { return @{ ok=$false; msg='manifest has the wrong format' } }
+  if ($m.app -notin 'LogosMiner','LogosNode' -or -not $m.build -or -not $m.files) { return @{ ok=$false; msg='manifest has the wrong format' } }
   @{ ok=$true; m=$m; base=$url }
 }
 function Move-Retry([string]$a,[string]$b) { for ($i=1; $i -le 8; $i++) { try { Move-Item -LiteralPath $a -Destination $b -Force -ErrorAction Stop; return } catch { if ($i -eq 8) { throw }; Start-Sleep 3 } } }   # Defender may lock a fresh file for a moment
@@ -1330,7 +1379,7 @@ function Update-Menu([switch]$CheckOnly, [switch]$Yes) {
   $localB = Local-Build
   Kv 'Installed' "build $localB ($BuildName)" White
   Kv 'Source' $url DarkGray
-  Say '  Checking (the manifest must carry the Logos Miner release signature)...' DarkCyan
+  Say '  Checking (the manifest must carry the Logos Node for Windows release signature)...' DarkCyan
   $mf = Get-Manifest $url
   if (-not $mf.ok) { Say "  $($mf.msg)" Red; Upd-Log "check failed: $($mf.msg)"; return }
   $m = $mf.m
@@ -1349,7 +1398,7 @@ function Update-Menu([switch]$CheckOnly, [switch]$Yes) {
   if (-not $todo.Count) { Say '  Files are already identical (only the version number changes).' Yellow }
   Say "  Files to replace: $($todo.Count)   download size: $([math]::Round($bytes/1MB,1)) MB" White
   foreach ($f in $todo) { Say "    - $($f.path)  ($([math]::Round([int64]$f.size/1KB)) KB)" Gray }
-  Say '  Safe by design: old files are backed up first, data\ (keys, chain), logos-miner.ini are never touched, and if the node does not start again the old files are put back automatically.' DarkGray
+  Say "  Safe by design: old files are backed up first, data\ (keys, chain) and $IniName are never touched, and if the node does not start again the old files are put back automatically." DarkGray
   if ($CheckOnly) { Say '  (check only - nothing changed)' DarkGray; return }
   if (-not $Yes) { if ((Read-Host '  Install this update now? y/N') -ne 'y') { Say '  Cancelled. Nothing changed.' Yellow; return } }
 
@@ -1416,8 +1465,15 @@ function Update-Menu([switch]$CheckOnly, [switch]$Yes) {
   Pick-Backups | select -SkipLast 2 | % { Remove-Item (Join-Path $Data ('cfg-backup-' + $_.Name + '.yaml')) -Force -ErrorAction SilentlyContinue; Remove-Item $_.FullName -Recurse -Force -ErrorAction SilentlyContinue }
   Upd-Log "update to build $($m.build) OK"
   Say "  UPDATED to build $($m.build) ($($m.name))." Green
-  Say '  Close this window and start LogosMiner.bat again to use the new panel. (To undo: Update menu > roll back.)' Green
-  if ($script:updExit) { exit 0 }
+  if ($script:updExit) { Say "  Start $Launcher again to use the new panel. (To undo: Update menu > roll back.)" Green; exit 0 }
+  Say '  (To undo later: Update menu > roll back.)' DarkGray
+  # open the NEW panel in a fresh window and close this one, so no key press is needed here
+  $lp = Join-Path $Root $Launcher
+  if (Test-Path -LiteralPath $lp) {
+    try { Start-Process -FilePath $lp -WorkingDirectory $Root -ErrorAction Stop; Say '  Opening the new panel in a new window...' Green; Start-Sleep 3; exit 0 } catch {}
+  }
+  Say "  Close this window and start $Launcher again to use the new panel." Green
+  Focus-Panel
   if (-not $CheckOnly -and -not $Yes) { Read-Host '  Press Enter to close this panel' | Out-Null }
   exit 0
 }
@@ -1431,7 +1487,7 @@ function Rollback-Menu([switch]$Yes) {
   Restore-Backup $bdir; Upd-Log "manual rollback from $($b[-1].Name)"
   Say '  Files restored.' Green
   if ($wasRunning) { if (Start-After-Update) { Say '  Node restarted.' Green } else { Say '  Node did not answer yet - use menu R.' Yellow } }
-  Say '  Close this window and start LogosMiner.bat again.' Green
+  Say "  Close this window and start $Launcher again." Green
   exit 0
 }
 function Update-Submenu {
@@ -1443,6 +1499,20 @@ function Update-Submenu {
   switch ((Read-Host '  Choose').Trim()) { '1' { Update-Menu } '2' { Rollback-Menu } default { } }
 }
 # ===================== end UPDATE =====================
+
+# ---- build 9 naming migration (LogosMiner -> Logos Node). Safe and idempotent: only ADDS files that are missing.
+# Never renames/edits LogosMiner.bat, logos-miner.ini, data\ or anything else, so old shortcuts, the old folder name
+# (e.g. C:\LogosMiner), the U updater and a roll back to build 8 keep working exactly as before.
+function Migrate-Names {
+  $bat = Join-Path $Root $Launcher
+  if (-not (Test-Path -LiteralPath $bat)) {
+    try { [IO.File]::WriteAllText($bat, "@echo off`r`ncd /d `"%~dp0`"`r`npowershell -NoProfile -ExecutionPolicy Bypass -File `"%~dp0panel.ps1`" %*`r`n", [Text.Encoding]::ASCII); Upd-Log "migrate: created $Launcher" } catch {}
+  }
+  if (-not (Test-Path -LiteralPath $Ini)) {   # neither .ini exists (deleted by hand): recreate the defaults instead of failing
+    try { [IO.File]::WriteAllText($Ini, (($DefaultIniText -replace "`r", '') -replace "`n", "`r`n") + "`r`n", [Text.Encoding]::ASCII); Upd-Log "migrate: created default $IniName" } catch {}
+  }
+}
+if ($args -notcontains '--version') { Migrate-Names }
 
 if ($args -contains '--arm') { Arm-Loop; exit }
 if ($args -contains '--start') { Start-Node; exit }
@@ -1460,7 +1530,7 @@ function Show-Banner {
   Write-Host '  | |  | | | | |  _| | | \___ \ ' -NoNewline -ForegroundColor Blue; Write-Host ' |  \| | | | | | | |  _|  ' -ForegroundColor Magenta
   Write-Host '  | |__| |_| | |_| | |_| |___) |' -NoNewline -ForegroundColor Blue; Write-Host ' | |\  | |_| | |_| | |___ ' -ForegroundColor DarkMagenta
   Write-Host '  |_____\___/ \____|\___/|____/ ' -NoNewline -ForegroundColor DarkCyan; Write-Host ' |_| \_|\___/|____/|_____|' -ForegroundColor DarkMagenta
-  Write-Host '        ' -NoNewline; Write-Host 'for Windows' -NoNewline -ForegroundColor Yellow; Write-Host '  -  Logos testnet node + miner  -  v0.3.4 ' + $BuildName -ForegroundColor DarkGray
+  Write-Host '        ' -NoNewline; Write-Host 'for Windows' -NoNewline -ForegroundColor Yellow; Write-Host ('  -  Logos blockchain full node (testnet)  -  node 0.3.4, ' + $BuildName) -ForegroundColor DarkGray
   Write-Host ('  ' + ('=' * 58)) -ForegroundColor DarkBlue
 }
 
@@ -1472,10 +1542,12 @@ if ($args -contains '--update-check') { Update-Menu -CheckOnly; exit }
 if ($args -contains '--update') { $script:updExit = $true; Update-Menu -Yes:($args -contains '--yes'); exit }
 if ($args -contains '--rollback') { Rollback-Menu -Yes:($args -contains '--yes'); exit }
 if ($args -contains '--version') { "build $(Local-Build) ($BuildName)"; exit }
+if ($args -contains '--settings-file') { $IniName; exit }
 if ($args -contains '--inscribe') { Inscribe-Menu; exit }
 if ($args -contains '--send') { Send-Menu; exit }
 if ($args -contains '--receive') { Receive-Menu; exit }
 $pause = $false
+$script:MenuMode = $true   # from here on a person is using this window (Focus-Panel may give it the keyboard focus back)
 while ($true) {
   $c = Load-Cfg
   if ($pause) { Write-Host ''; Read-Host '  (press Enter to return to the menu)' | Out-Null }
@@ -1525,7 +1597,7 @@ while ($true) {
       if (-not $ok) { Say '  Not changed (type a whole number between 1 and the CPU thread count).' Red }
       else {
         $chk = (Load-Cfg).threads
-        Say "  Saved in logos-miner.ini: threads $old -> $chk." Green
+        Say "  Saved in ${IniName}: threads $old -> $chk." Green
         if (Node-Proc) {
           if ((Read-Host '  The running node only reads this at startup. Restart the node now to apply? y/N') -eq 'y') { Stop-Node; Start-Node; Say "  Applied: node restarted with $(Run-Threads) threads." Green }
           else { Say '  Not applied yet. Use menu R later to apply.' Yellow }

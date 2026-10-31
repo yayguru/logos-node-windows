@@ -4,6 +4,20 @@ Unofficial Windows build of the Logos blockchain node. Build numbers are this pr
 Builds 1 to 7 were released before this repository was public (build 6 was the first signed-update release).
 Times are approximate. Builds 1 to 7 bundle node 0.3.2.
 
+## Build 9 (2026-10-31), node 0.3.4 (unchanged)
+- Renamed from "LogosMiner" to **Logos Node for Windows**: `LogosNode.bat`, `logos-node.ini`, zip `LogosNode-win64-<version>.zip`,
+  and the panel's product name and texts.
+- Migration for installs of builds 6 to 8: the panel adds `LogosNode.bat` next to `LogosMiner.bat` and keeps using an existing
+  `logos-miner.ini`; it never renames or edits the old launcher, the settings or `data\`. The status screen shows the settings
+  file in use. If both settings files exist, the old one wins unless the new one was edited. New option `--settings-file`.
+- The update manifest keeps `"app": "LogosMiner"` and the same URL so build 6 to 8 panels keep updating; the panel accepts
+  `LogosMiner` and `LogosNode`.
+- Fix: after menu U (and after starting the node from the menu) "Press Enter" could do nothing. Likely cause: the hidden helper the
+  panel starts could briefly get a console window and keep the keyboard focus while hidden. Helpers are now created hidden
+  (Win32_ProcessStartup ShowWindow = 0) and the panel takes the focus back. After a successful update the panel now opens the
+  new panel in a new window by itself. Panels of builds 6 to 8 still have the old behaviour while they install this update:
+  click once inside the window, or just close it.
+
 ## Repository updates (no new build)
 - 2026-10-31: README picture and social preview image (mock-ups with example values), ASCII banner, a pinned
   disclaimer, issue forms, a pull request checklist, supported versions in SECURITY.md.

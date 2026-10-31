@@ -2,7 +2,7 @@
 
 | Path | What it is |
 |---|---|
-| `CHANGELOG.md` | Release history, builds 1 to 8. |
+| `CHANGELOG.md` | Release history, builds 1 to 9. |
 | `README.md` | Overview, install, update mechanism, security model, build summary, licence, disclaimer. |
 | `LICENSE` | MIT licence for the project code, plus which files keep other licences. |
 | `CONTRIBUTING.md` | How to contribute (PowerShell 5.1, ASCII, parse check, no secrets). |
@@ -14,9 +14,9 @@
 | `.github/ISSUE_TEMPLATE/*` | Issue forms (bug report, feature request) and links to security reporting and upstream. |
 | `.github/pull_request_template.md` | Checklist for pull requests. |
 | `.gitignore` | Keeps build output, node data, keys and local configs out of git. |
-| `app/LogosMiner.bat` | Double-click launcher (legacy name, kept for update compatibility): runs `panel.ps1` with Windows PowerShell and passes the command-line options through. |
-| `app/panel.ps1` | The panel: node setup and start/stop, config patching for node 0.3.4, mining control, claims, wallet, send/receive, inscriptions, signed updater and rollback. Embeds the update public key. |
-| `app/logos-miner.ini` | Default settings (mode, threads, API address, P2P port, public address, claim key, update URL, public testnet bootstrap peers). |
+| `app/LogosNode.bat` | Double-click launcher (called `LogosMiner.bat` up to build 8; old installs keep theirs and the panel adds this one): runs `panel.ps1` with Windows PowerShell and passes the command-line options through. |
+| `app/panel.ps1` | The panel: name migration for old installs, node setup and start/stop, config patching for node 0.3.4, mining control, claims, wallet, send/receive, inscriptions, signed updater and rollback. Embeds the update public key. |
+| `app/logos-node.ini` | Default settings (called `logos-miner.ini` up to build 8; old installs keep using theirs) (mode, threads, API address, P2P port, public address, claim key, update URL, public testnet bootstrap peers). |
 | `app/README.txt` | End-user guide shipped inside the zip. |
 | `app/THIRD-PARTY-NOTICES.txt` | Where every bundled binary comes from, its licence, and the LGPL relinking notes. |
 | `app/LICENSES/*` | Full licence texts for the bundled components (logos-blockchain MIT/Apache-2.0, rapidsnark and GMP LGPL-3.0, GPL-3.0, GCC Runtime Library Exception 3.1, winpthreads). |
@@ -32,6 +32,6 @@
 | `build/04-node-source.sh` | Checks out the node tag, applies the rust-rapidsnark patch and adds the Cargo `[patch]` entry. |
 | `build/05-build-node.ps1` | Runs `cargo build -p logos-blockchain-node --release` with the needed environment. |
 | `build/06-build-lxpost.sh` | Builds `lxpost.exe`. |
-| `build/07-pack.sh` | Assembles `LogosMiner/`, the zip and SHA256SUMS, and optionally the signed update folder. |
+| `build/07-pack.sh` | Assembles `LogosNode/`, the zip and SHA256SUMS, and optionally the signed update folder. |
 | `build/patches/rust-rapidsnark-windows.patch` | The only node-side change: `c_ulong` cast and NUL-trim of the proof string. |
 | `build/rapidsnark-windows/*` | Build files from the logos-blockchain-circuits Windows CI recipe (`Makefile`, `src/CMakeLists.txt`, `build_gmp.sh`, `mman_patch.hpp`, `sys/uio.h`) with our small MinGW changes. Upstream licences apply. |
