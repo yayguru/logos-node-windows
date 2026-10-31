@@ -1,14 +1,15 @@
-# Files in this repository
+# Files in this repository (logos-node-windows)
 
 | Path | What it is |
 |---|---|
+| `CHANGELOG.md` | Release history, builds 1 to 8. |
 | `README.md` | Overview, install, update mechanism, security model, build summary, licence, disclaimer. |
 | `LICENSE` | MIT licence for the project code, plus which files keep other licences. |
 | `CONTRIBUTING.md` | How to contribute (PowerShell 5.1, ASCII, parse check, no secrets). |
 | `SECURITY.md` | How to report vulnerabilities and what the panel protects. |
 | `FILES.md` | This list. |
 | `.gitignore` | Keeps build output, node data, keys and local configs out of git. |
-| `app/LogosMiner.bat` | Double-click launcher: runs `panel.ps1` with Windows PowerShell and passes the command-line options through. |
+| `app/LogosMiner.bat` | Double-click launcher (legacy name, kept for update compatibility): runs `panel.ps1` with Windows PowerShell and passes the command-line options through. |
 | `app/panel.ps1` | The panel: node setup and start/stop, config patching for node 0.3.4, mining control, claims, wallet, send/receive, inscriptions, signed updater and rollback. Embeds the update public key. |
 | `app/logos-miner.ini` | Default settings (mode, threads, API address, P2P port, public address, claim key, update URL, public testnet bootstrap peers). |
 | `app/README.txt` | End-user guide shipped inside the zip. |

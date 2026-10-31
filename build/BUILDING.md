@@ -18,3 +18,11 @@ MinGW `ar` archives. Both only link cleanly with the MinGW toolchain.
 Check the result: `logos-blockchain-node.exe --version` should print the tag's version.
 Unpatched rapidsnark at that pin makes the node panic with `ProofGeneration(Json(Error("trailing characters" ...)))` when it
 goes Online. That is what the NUL-trim in the patch fixes.
+
+## Relinking the LGPL components (rapidsnark, GMP)
+The node links rapidsnark and GMP statically. To use your own (modified) versions:
+1. Build them with `build/01-rapidsnark.sh` (or your own MinGW build) so you get `librapidsnark.a`, `libfr.a`, `libfq.a` and `libgmp.a`.
+2. Point `RAPIDSNARK_LIB_DIR` at that folder and run steps 4 and 5 (`04-node-source.sh`, `05-build-node.ps1`) again.
+3. Replace `bin\logos-blockchain-node.exe` in your install with the result.
+The node source is public (upstream tag `0.3.4`) and the only change is `patches/rust-rapidsnark-windows.patch`, so the
+whole program can be rebuilt and relinked. If you need the exact sources used for a release, open an issue.

@@ -1,12 +1,38 @@
-# LogosMiner for Windows
+# Logos Node for Windows (unofficial)
 
-A native Windows (no WSL) package for running a **Logos blockchain testnet node and miner**. It has a simple
-menu-driven PowerShell panel. Unzip it, double-click `LogosMiner.bat`, and pick "full node" or "mine only".
+[![Release](https://img.shields.io/github/v/release/yayguru/logos-node-windows?label=release)](https://github.com/yayguru/logos-node-windows/releases/latest)
+[![Node](https://img.shields.io/badge/logos--blockchain--node-0.3.4-blue)](https://github.com/logos-blockchain/logos-blockchain/releases/tag/0.3.4)
+![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20x64-informational)
+![Network](https://img.shields.io/badge/network-testnet-orange)
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+![Status](https://img.shields.io/badge/status-unofficial%20community%20build-lightgrey)
 
-> **Not affiliated.** This is a community project. It is not made, endorsed or supported by the Logos project, IFT
-> or the logos-blockchain maintainers. "Logos" is used only to describe what the software works with.
+An **unofficial, community-made native Windows build of the Logos blockchain full node** (no WSL, no Docker), packaged
+with a menu-driven control panel. It runs a real full node: it syncs and validates the chain, takes part in the P2P
+network and can optionally mine, claim rewards, send/receive coins and inscribe data. Updates are signed and verified.
+
+Unzip, double-click `LogosMiner.bat`, and pick **full node** or **mine only** (outbound-only node, no admin rights).
+
+> **Unofficial. Not affiliated with, endorsed by or supported by the Logos project, IFT or the logos-blockchain
+> maintainers.** The node itself is the upstream open-source `logos-blockchain-node`, built for Windows from the
+> upstream tag with one small portability patch (see [Build from source](#build-from-source)). "Logos" is used only to
+> say what the software is compatible with. For official software and support, see
+> [logos-blockchain/logos-blockchain](https://github.com/logos-blockchain/logos-blockchain).
 
 Current release: **build 8**, bundling `logos-blockchain-node` **0.3.4** (upstream tag `0.3.4`, commit `f7ab0323`).
+See [CHANGELOG.md](CHANGELOG.md).
+
+> **Naming note.** The project started as "LogosMiner". The launcher (`LogosMiner.bat`), settings file
+> (`logos-miner.ini`), zip name and update manifest still use that legacy name so existing installs keep updating.
+> They will be renamed in a later build with a migration step.
+
+## What is in the zip
+| Component | Source | Licence |
+|---|---|---|
+| `bin\logos-blockchain-node.exe` | upstream node, tag `0.3.4`, built with MinGW-w64 | MIT OR Apache-2.0 (statically links rapidsnark and GMP, LGPL-3.0) |
+| `bin\lxpost.exe` | [`lxpost/`](lxpost) in this repo: builds and signs transfers and inscriptions locally | MIT OR Apache-2.0 |
+| `panel.ps1`, `LogosMiner.bat`, `logos-miner.ini` | [`app/`](app) in this repo | MIT |
+| MinGW runtime DLLs | MSYS2 / GCC | GPL-3.0 with GCC Runtime Library Exception, winpthreads licence |
 
 ## Features
 - One-click node setup: **full node** (opens the P2P port in Windows Firewall, with an optional public address) or **mine only**
@@ -70,6 +96,22 @@ In short:
 The only node-side change is the rust-rapidsnark patch: a `c_ulong` cast (long is 32-bit on Windows) and trimming NUL padding
 from the proof string. Nothing else in the node source is modified.
 
+## Is it open source?
+Yes, with these limits stated plainly:
+- **Everything in this repo is open source**: the panel, launcher, updater, `lxpost`, build scripts and the
+  node patch (MIT; `lxpost` MIT OR Apache-2.0). The node is the unmodified upstream source plus
+  `build/patches/rust-rapidsnark-windows.patch`.
+- **LGPL components (rapidsnark, GMP) are statically linked.** To meet LGPL-3.0, the exact sources and build
+  recipe are in `build/` (`01-rapidsnark.sh`, `build/rapidsnark-windows/`), and you can relink the node against your own
+  build of them using the steps in [build/BUILDING.md](build/BUILDING.md). Corresponding source is also available on request
+  through an issue. See `app/THIRD-PARTY-NOTICES.txt`.
+- **Builds are not reproducible yet.** A rebuild from these scripts should behave the same, but its SHA-256 will not match
+  the release byte for byte (toolchain versions and timestamps are not pinned). Trust rests on the published hashes and the
+  signed update manifest.
+- **Binaries are not code-signed** (no Authenticode certificate), so SmartScreen warns on first run.
+- **`lxpost.exe` in build 8 was built against the 0.3.2 node crates** (the transaction format it uses did not change in 0.3.4).
+  It will be rebuilt against 0.3.4 in a later build.
+
 ## Licence
 The project code is under the [MIT licence](LICENSE). `lxpost/` is MIT OR Apache-2.0. Release zips also contain the upstream node
 (MIT OR Apache-2.0), rapidsnark and GMP (LGPL-3.0, statically linked) and the MinGW/GCC runtime DLLs (GPL-3.0 with the GCC Runtime Library
@@ -77,5 +119,6 @@ Exception, and the winpthreads licence). All their licence texts and the LGPL re
 `app/THIRD-PARTY-NOTICES.txt` and must ship with every binary release.
 
 ## Disclaimer
-Testnet software, provided "as is", without warranty of any kind. Mining uses a lot of CPU and power. Inscriptions and transfers are
+Unofficial community software for the Logos **testnet**, provided "as is", without warranty of any kind (see [LICENSE](LICENSE)).
+Not affiliated with or endorsed by the Logos project. Testnet coins have no guaranteed value and the network may be reset. Mining uses a lot of CPU and power. Inscriptions and transfers are
 public, permanent and final. You are responsible for your keys and backups. Use at your own risk.
