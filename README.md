@@ -37,12 +37,12 @@ network and can optionally mine, claim rewards, send/receive coins and inscribe 
 Unzip, double-click `LogosNode.bat`, and pick **full node** or **mine only** (outbound-only node, no admin rights).
 
 > The node itself is the upstream open-source `logos-blockchain-node`, built for Windows from the
-> upstream tag with one small portability patch (see [Build from source](#build-from-source)). "Logos" is used only to
+> upstream tag with a small portability patch and the node fixes listed in the changelog (see [Build from source](#build-from-source)). "Logos" is used only to
 > say what the software is compatible with. For official software and support, see
 > [logos-blockchain/logos-blockchain](https://github.com/logos-blockchain/logos-blockchain).
 
-Current release: **build 9**, bundling `logos-blockchain-node` **0.3.4** (upstream tag `0.3.4`, commit `f7ab0323`).
-See [CHANGELOG.md](CHANGELOG.md).
+Current release: **build 11**, bundling `logos-blockchain-node` **0.3.4** (upstream tag `0.3.4`, commit `f7ab0323`) with
+`build/patches/node-0.3.4-v11.patch` (PoW claims no longer stall behind this node's own block proposal). See [CHANGELOG.md](CHANGELOG.md).
 
 > **Naming note.** Builds 1 to 8 were called "LogosMiner". Build 9 renames the launcher to `LogosNode.bat`, the settings
 > file to `logos-node.ini` and the zip to `LogosNode-win64-<version>.zip`. Existing installs are migrated in place by the

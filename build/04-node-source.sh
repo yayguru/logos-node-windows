@@ -10,4 +10,7 @@ REV=$(grep -A2 'name = "rust-rapidsnark"' logos-blockchain/Cargo.lock | sed -n '
 [ -d rust-rapidsnark ] || git clone https://github.com/logos-blockchain/logos-blockchain-rust-rapidsnark.git rust-rapidsnark
 ( cd rust-rapidsnark && git checkout -q "$REV" && (git apply --check "$HERE/patches/rust-rapidsnark-windows.patch" 2>/dev/null && git apply "$HERE/patches/rust-rapidsnark-windows.patch" || echo "patch already applied?") )
 cd logos-blockchain
+# Build 10 and later: node-side fixes on top of the tag (upstream PR 3986 backport and the build 11 Blend claim-jam fix).
+NODE_PATCH="$HERE/patches/node-0.3.4-v11.patch"
+if git apply --check "$NODE_PATCH" 2>/dev/null; then git apply "$NODE_PATCH"; else echo "node patch already applied?"; fi
 grep -q 'patch."https://github.com/logos-blockchain/logos-blockchain-rust-rapidsnark.git"' Cargo.toml || printf '\n[patch."https://github.com/logos-blockchain/logos-blockchain-rust-rapidsnark.git"]\nrust-rapidsnark = { path = "../rust-rapidsnark/crates" }\n' >> Cargo.toml

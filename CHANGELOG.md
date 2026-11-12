@@ -4,6 +4,35 @@ Unofficial Windows build of the Logos blockchain node. Build numbers are this pr
 Builds 1 to 7 were released before this repository was public (build 6 was the first signed-update release).
 Times are approximate. Builds 1 to 7 bundle node 0.3.2.
 
+## Build 11 (2026-11-12), node 0.3.4 + fixes
+Fixes PoW claims that stop settling after this node proposes its own block ("claims stop after my block"). The node had to
+be restarted to recover; it no longer does.
+- **Cause.** Blend sends this node's locally made messages from two queues, block proposals and transactions (PoW claims are
+  the only transactions it carries). The head proposal was always served first (`services/blend/src/pending.rs`,
+  `next_local_message`), and encapsulating it awaits a leadership proof (`edge/current_epoch.rs` and `core/mod.rs`,
+  `encapsulate_next_local_message`). That proof comes from the PoL scan for winning slots; when it is late the await never
+  ends, and when it is not available (`ProofNotAvailable`, mapped to `Retry`) the send branch is disabled. Either way no claim
+  behind the proposal was ever sent; they piled up (Blend pending over 1,000) and expired after 100 slots. The proposal queue
+  only cleared at the next epoch or a restart.
+- **Fix in Blend.** A proposal keeps priority for 2 s after it is queued; after that it is still tried first on every turn,
+  but only with proofs that are already there, and the next claim goes meanwhile. The budget is counted from queue time,
+  so other events that wake the loop (new claims, status requests) cannot keep resetting it. A proposal older than 60 s and
+  a transaction older than 90 s (its claim window has closed) are dropped instead of blocking the queue.
+- **Fix in PoW.** A claim that is still unsettled 45 slots after it was first seen pending is moved back to "ready" and claimed
+  again in a new transaction while its window is open. Tickets whose nullifier the ledger already records are retired before
+  a claim is built, so a ticket is never paid twice and a late duplicate never spoils a new claim transaction.
+- **Tests.** New tests run a stuck own proposal with 5 claims behind it (proof never comes; quota exhausted; and the loop
+  being woken every 500 ms). All three fail on build 10 code ("claim 0 of 5 never left") and pass on build 11. Blend service
+  lib tests: 114 passed, 1 ignored (pre-existing). PoW service lib tests: 54 passed.
+- **Not yet verified.** That claims keep settling across a real own block proposal on the testnet. Why the leadership proof
+  is late (most likely the PoL scan running slower than the chain on nodes with many notes) is not fixed here; that proposal
+  may still go out late or be dropped after 60 s. Time limits are in seconds and assume about 1 s per slot.
+- No restart-based watchdog: the panel is unchanged apart from the build number.
+
+## Build 10 (2026-11-07), node 0.3.4 + upstream PR 3986 backport
+- Blend winning-slot pre-poll (upstream PR 3986, commit `9739b5fc`) backported onto tag `0.3.4`. Did not fix the claim stall
+  after an own block proposal (see build 11).
+
 ## Build 9 (2026-10-31), node 0.3.4 (unchanged)
 - Renamed from "LogosMiner" to **Logos Node for Windows**: `LogosNode.bat`, `logos-node.ini`, zip `LogosNode-win64-<version>.zip`,
   and the panel's product name and texts.

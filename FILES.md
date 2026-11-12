@@ -2,7 +2,7 @@
 
 | Path | What it is |
 |---|---|
-| `CHANGELOG.md` | Release history, builds 1 to 9. |
+| `CHANGELOG.md` | Release history, builds 1 to 11. |
 | `README.md` | Overview, install, update mechanism, security model, build summary, licence, disclaimer. |
 | `LICENSE` | MIT licence for the project code, plus which files keep other licences. |
 | `CONTRIBUTING.md` | How to contribute (PowerShell 5.1, ASCII, parse check, no secrets). |
@@ -29,9 +29,10 @@
 | `build/01-rapidsnark.sh` | Builds rapidsnark and GMP for MinGW using `build/rapidsnark-windows/`. |
 | `build/02-fix-circuit-libs.sh` | Makes the official circuits v0.5.7 Windows libs linkable with gnu ld (pass 1). |
 | `build/03-fix-circuit-libs-comdat.sh` | Same, pass 2 (COMDAT keys, `.refptr.Fr_q` renaming). |
-| `build/04-node-source.sh` | Checks out the node tag, applies the rust-rapidsnark patch and adds the Cargo `[patch]` entry. |
+| `build/04-node-source.sh` | Checks out the node tag, applies the node patch and the rust-rapidsnark patch, and adds the Cargo `[patch]` entry. |
 | `build/05-build-node.ps1` | Runs `cargo build -p logos-blockchain-node --release` with the needed environment. |
 | `build/06-build-lxpost.sh` | Builds `lxpost.exe`. |
 | `build/07-pack.sh` | Assembles `LogosNode/`, the zip and SHA256SUMS, and optionally the signed update folder. |
-| `build/patches/rust-rapidsnark-windows.patch` | The only node-side change: `c_ulong` cast and NUL-trim of the proof string. |
+| `build/patches/rust-rapidsnark-windows.patch` | rust-rapidsnark change: `c_ulong` cast and NUL-trim of the proof string. |
+| `build/patches/node-0.3.4-v11.patch` | Node source changes for builds 10 and 11 (PR 3986 backport; Blend claim-jam fix and PoW re-claiming), see `build/BUILDING.md`. |
 | `build/rapidsnark-windows/*` | Build files from the logos-blockchain-circuits Windows CI recipe (`Makefile`, `src/CMakeLists.txt`, `build_gmp.sh`, `mman_patch.hpp`, `sys/uio.h`) with our small MinGW changes. Upstream licences apply. |

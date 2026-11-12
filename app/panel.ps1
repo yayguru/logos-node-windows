@@ -40,7 +40,7 @@ $Data = Join-Path $Root 'data'
 $Ucfg = Join-Path $Data 'user_config.yaml'
 $Log  = Join-Path $Data 'node.log'
 $env:Path = (Join-Path $Root 'bin') + ';' + $env:Path
-$BuildNo = 9; $BuildName = 'v9'          # bumped on every release; the updater compares this number with the manifest
+$BuildNo = 11; $BuildName = 'v11'          # bumped on every release; the updater compares this number with the manifest
 $PauseFile = Join-Path $Data 'mining.paused' # exists = you pressed "Stop mining" (menu 5); the background helper then leaves mining off
 
 # CPU facts. Mining speed is limited by CPU threads, NOT by RAM (a thread needs very little memory).

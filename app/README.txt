@@ -1,4 +1,6 @@
-Logos Node for Windows (unofficial) - the Logos blockchain full node 0.3.4 for Windows, native, no WSL (build 9)
+Logos Node for Windows (unofficial) - the Logos blockchain full node 0.3.4 for Windows, native, no WSL (build 11)
+Build 11: PoW claims no longer wait behind this node's own block proposal (the "claims stop after my block" jam). Unsettled claims are re-sent while their window is open. Covered by tests; not yet seen live across an own block proposal. Клеймы больше не стоят за собственным блоком; проверено тестами, на живом блоке ещё не подтверждено.
+
 Community build; not made or endorsed by the Logos team. Formerly called "LogosMiner" (builds 1-8).
 
 1. Unzip anywhere (e.g. C:\LogosNode).
