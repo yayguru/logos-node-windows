@@ -4,6 +4,20 @@ Unofficial Windows build of the Logos blockchain node. Build numbers are this pr
 Builds 1 to 7 were released before this repository was public (build 6 was the first signed-update release).
 Times are approximate. Builds 1 to 7 bundle node 0.3.2.
 
+## Panel update for Basecamp API (2026-11-14), no new node binary
+The control panel now treats the node as usable for **balance and inscriptions** when
+`http://127.0.0.1:<http port>` answers, even if the process is Basecamp's `logos_host`
+rather than this folder's `logos-blockchain-node.exe`.
+- `Start-Node` does not start a second node, and does not attach mining control, if a
+  foreign API is already up on the configured port.
+- `Stop-Node` never sends `/pow/mining/stop` and never kills a foreign process.
+- `Get-WalletKey` prefers `/pow/status` of the API in use, so the key matches the node
+  you are actually talking to.
+- The build number stays **11**, so the signed update channel (`logos.ulti.mom`) is
+  unchanged. This is a GitHub prerelease of `panel.ps1` only. Do not install it onto
+  a live Basecamp node as part of this drop (installing the module itself needs a
+  restart, coordinated separately).
+
 ## Build 12 / module v0.3.4-windows.2 (2026-11-14), node 0.3.4 + build 11 + voucher path sharing
 Fixes the memory leak where the node's RSS grew by hundreds of MB to several GB over a few hours (same
 behaviour on Linux and Windows). The wallet kept one `WalletState` per applied block and, on every new

@@ -151,6 +151,11 @@ function Node-Proc {
   $ids = @(Get-CimInstance Win32_Process -Filter "Name='logos-blockchain-node.exe'" -ErrorAction SilentlyContinue | ? { $_.ExecutablePath -and ([IO.Path]::GetFullPath($_.ExecutablePath).ToLower() -eq $want) } | % { [int]$_.ProcessId })
   if ($ids.Count) { Get-Process -Id $ids -ErrorAction SilentlyContinue }
 }
+# The node is usable for balance/inscriptions when the configured local API answers,
+# even if the process is Basecamp's logos_host rather than this folder's logos-blockchain-node.exe.
+function Api-Alive { [bool](Api '/cryptarchia/info' 'GET' 8) }
+function Node-Api-Up { if (Node-Proc) { return $true }; Api-Alive }
+function Api-Is-Foreign { (Api-Alive) -and -not (Node-Proc) }
 
 function Init-Node {
   if (Test-Path $Ucfg) { Write-Host "Node already initialised ($Ucfg)."; return }
@@ -326,7 +331,12 @@ function Start-Node {
   $c = Load-Cfg
   if (Test-Path $Data) { icacls $Data /inheritance:r /grant:r "*$([Security.Principal.WindowsIdentity]::GetCurrent().User.Value):(OI)(CI)F" "*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F" /Q | Out-Null; icacls "$Data\*" /inheritance:e /T /Q /C | Out-Null }
   if (-not (Test-Path $Ucfg)) { Init-Node }
-  if (Node-Proc) { Write-Host 'Node already running.' } else {
+  if (Node-Proc) { Write-Host 'Node already running.' } elseif (Api-Alive) {
+    $c2 = Load-Cfg
+    Write-Host "A node API is already answering at http://$($c2.api) (not this folder's logos-blockchain-node). Not starting a second node." -ForegroundColor Yellow
+    Write-Host 'Balance and inscriptions can use this API (menu W / I, or --balance / --inscribe). Start/stop/restart and mining stay with that other process (e.g. Basecamp).' -ForegroundColor DarkCyan
+    return
+  } else {
     $pc = @(Port-Conflicts $c)
     if ($pc.Count) { Write-Host 'Cannot start the node: a port it needs is already taken.' -ForegroundColor Red; $pc | % { Write-Host "  - $_" -ForegroundColor Yellow }
       Say "Fix: close the other program (if it is another Logos node or another copy of this folder, stop that one first), or pick free ports with api= / net_port= in $IniName. Nothing was started." Yellow; return }
@@ -548,6 +558,14 @@ function Show-Log {
   if ((Test-Path "$f.err") -and (Get-Item "$f.err").Length -gt 0) { Say '  --- node.log.err (last 15 lines) ---' DarkCyan; Get-Content "$f.err" -Tail 15 | % { Write-Host "  $(Strip-Ansi $_)" -ForegroundColor Red } }
 }
 function Stop-Node {
+  # Only this folder's logos-blockchain-node.exe. Never send stop/mining-stop to a
+  # foreign API (e.g. a Basecamp logos_host that happens to be on the same port).
+  if (-not (Node-Proc)) {
+    $c = Load-Cfg
+    if (Api-Alive) { Write-Host "This folder's node is not running. A node API is already answering at http://$($c.api); leaving it alone (e.g. Basecamp)." -ForegroundColor Yellow }
+    else { Write-Host "This folder's node is not running." -ForegroundColor Yellow }
+    return
+  }
   Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" | ? { $_.CommandLine -and $_.CommandLine.Contains($PSCommandPath) -and $_.CommandLine -match '--arm' } | % { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }; Api '/pow/mining/stop' 'PUT' 6 | Out-Null; $p = Node-Proc; if ($p) { $p | Stop-Process -Force -EA 0; Start-Sleep 3; Node-Proc | % { Invoke-CimMethod -Query "select * from Win32_Process where ProcessId=$($_.Id)" -MethodName Terminate | Out-Null }; Write-Host "Node stopped." -ForegroundColor Yellow } }
 
 # ======================= WALLET + INSCRIBE (added v3) =======================
@@ -582,13 +600,12 @@ function Retry-Slow($path, $method='GET', $body=$null, $maxSec=300, $tries=3) {
 }
 
 function Get-WalletKey($apiSec=60) {
-  # The node's own wallet key = auto-claim target (rewards land here and this node can spend from it). Public key only.
+  # The node we are talking to (this folder, or a Basecamp API on the same 127.0.0.1 port). Public key only.
+  $s = Api '/pow/status' 'GET' $apiSec
+  if ($s -and $s.auto_claim -and $s.auto_claim.targets) { $k = @($s.auto_claim.targets)[0].public_key; if ($k -match '^[0-9a-f]{64}$') { return $k } }
   if (Test-Path $Ucfg) { $m = [regex]::Match((Get-Content $Ucfg -Raw), '(?ms)^  auto_claim:.*?-\s*public_key:\s*([0-9a-fA-F]{64})'); if ($m.Success) { return $m.Groups[1].Value.ToLower() } }
   $al = Get-Content (Join-Path $Data 'arm.log') -Tail 8 -ErrorAction SilentlyContinue
   foreach ($l in @($al)) { if ($l -match '"targets":\[\{"public_key":"([0-9a-f]{64})"') { return $Matches[1] } }
-  if (-not (Node-Proc)) { return $null }
-  $s = Api '/pow/status' 'GET' $apiSec
-  if ($s -and $s.auto_claim -and $s.auto_claim.targets) { $k = @($s.auto_claim.targets)[0].public_key; if ($k -match '^[0-9a-f]{64}$') { return $k } }
   $null
 }
 function Get-Balance($pk) {
@@ -602,7 +619,7 @@ function Get-Balance($pk) {
 function Show-Balance {
   $c = Load-Cfg
   Say '  ---- WALLET BALANCE ----' Cyan
-  if (-not (Node-Proc)) { Say '  The node is not running. Start it first (menu 1 or 2).' Red; return }
+  if (-not (Node-Api-Up)) { Say '  The node API is not answering (set api= in the ini to 127.0.0.1:<port>, or start this folder''s node with menu 1 or 2).' Red; return }
   $pk = Get-WalletKey
   if (-not $pk) { Say '  Could not find this node''s wallet key yet (the node has not reported its mining status). Wait a few minutes after the node is Online and try again.' Yellow; return }
   Kv 'Wallet key' $pk White
@@ -723,7 +740,7 @@ function Inscribe-Menu {
   Say '  ---- INSCRIBE: write data permanently on the Logos chain ----' Cyan
   if ($script:DryRun) { Say '  *** DRY-RUN: everything is calculated and checked, NOTHING is sent ***' Magenta }
   if (-not (Test-Path $Lx)) { Say '  bin\lxpost.exe is missing - re-extract the whole zip.' Red; return }
-  if (-not (Node-Proc)) { Say '  The node is not running. Start it first (menu 1 or 2).' Red; return }
+  if (-not (Node-Api-Up)) { Say '  The node API is not answering (set api= in the ini to 127.0.0.1:<port>, or start this folder''s node with menu 1 or 2).' Red; return }
   $ci = Api '/cryptarchia/info'
   if (-not $ci) { Say '  The node API is not answering yet (busy or starting). Try again in a minute.' Yellow; return }
   if ($ci.cryptarchia_info.state -ne 'Online') { Say "  The node is '$($ci.cryptarchia_info.state)' - it must be Online and fully synced before it can send transactions. Check status (3)." Yellow; return }
@@ -964,7 +981,7 @@ function Fund-Transfer($pk, $dest, [int64]$amount, [int64]$maxFee) {   # asks th
 # ---- reusable core (no prompts, no printing of secrets): the menus below call these ----
 function Get-XferEnv {   # @{ ok; err; pk; ep; sp; w=<spendable>; estMax; top; pendingHash }
   if (-not (Test-Path $Lx)) { return @{ ok=$false; err='bin\lxpost.exe is missing - re-extract the whole zip.' } }
-  if (-not (Node-Proc)) { return @{ ok=$false; err='The node is not running. Start it first (menu 1 or 2).' } }
+  if (-not (Node-Api-Up)) { return @{ ok=$false; err='The node API is not answering (set api= in the ini to 127.0.0.1:<port>, or start this folder''s node with menu 1 or 2).' } }
   $ci = Api '/cryptarchia/info'
   if (-not $ci) { return @{ ok=$false; err='The node API is not answering yet (busy or starting). Try again in a minute.' } }
   if ($ci.cryptarchia_info.state -ne 'Online') { return @{ ok=$false; err="The node is '$($ci.cryptarchia_info.state)' - it must be Online and fully synced before it can send. Check status (3)." } }
@@ -1086,7 +1103,7 @@ function Get-ReceiveKey {   # -> @{ ok; err; pk; payoutKey }   FAST: local files
   $pk = Get-WalletKey 15
   if (-not $pk) {
     if (-not (Test-Path $Ucfg)) { return @{ ok=$false; err='This folder has no node identity yet (data\user_config.yaml is missing). Start the node once (menu 1 or 2), then try again.' } }
-    if (-not (Node-Proc)) { return @{ ok=$false; err='Could not find the wallet key in data\user_config.yaml and the node is not running. Start it (menu 1 or 2) and try again.' } }
+    if (-not (Node-Api-Up)) { return @{ ok=$false; err='Could not find the wallet key in data\user_config.yaml and the node API is not answering. Point api= at the running node (e.g. Basecamp) or start this folder''s node (menu 1 or 2).' } }
     return @{ ok=$false; err='Could not find this node''s wallet key yet (not in data\user_config.yaml and the node did not answer within 15 s). Try again in a few minutes.' }
   }
   @{ ok=$true; pk=$pk; payoutKey=$(if ($c.claim_public_key -and $c.claim_public_key.ToLower() -ne $pk) { $c.claim_public_key.ToLower() } else { '' }) }
@@ -1238,7 +1255,7 @@ function Receive-Menu {
   Kv 'Explorer' "$Explorer/#/addr/$($k.pk)" DarkGray
   Write-Host ''
   # 2) balance: ONE attempt, at most 60 s (the node API is slow while all threads mine)
-  if (-not (Node-Proc)) { Say '  Balance: the node is not running (start it with menu 1 or 2). Your address above is still valid.' Yellow }
+  if (-not (Node-Api-Up)) { Say '  Balance: the node API is not answering (set api= or start this folder''s node with menu 1 or 2). Your address above is still valid.' Yellow }
   else {
     Say '  Reading the balance from the node (max 60 s)...' DarkCyan
     $w = Get-Spendable $k.pk 60 1
@@ -1555,7 +1572,7 @@ while ($true) {
   $mc = $(if ($c.mode -eq 'full') {'Green'} else {'Cyan'})
   Write-Host '  Mode: ' -NoNewline -ForegroundColor DarkCyan; Write-Host $(if ($c.mode -eq 'full') {'FULL NODE'} else {'MINE ONLY'}) -NoNewline -ForegroundColor $mc
   Write-Host '   Threads: ' -NoNewline -ForegroundColor DarkCyan; $rt = $(if (Node-Proc) { Run-Threads } else { 0 }); $thTxt = "$($c.threads) of $([Environment]::ProcessorCount) CPU threads$(if ($c.threads_auto) {' (auto)'})"; if ($rt -and $rt -ne [int]$c.threads) { $thTxt += " [node still uses $rt - press R to apply]" }; Write-Host $thTxt -NoNewline -ForegroundColor Magenta
-  Write-Host '   Node: ' -NoNewline -ForegroundColor DarkCyan; if (Node-Proc) { Write-Host 'running' -NoNewline -ForegroundColor Green; $lm = Log-Mining; Write-Host '   Mining: ' -NoNewline -ForegroundColor DarkCyan; if (Test-Path $PauseFile) { Write-Host 'paused' -ForegroundColor Yellow } elseif ($lm -eq 'on') { Write-Host 'ON' -ForegroundColor Green } elseif ($lm -eq 'off') { Write-Host 'OFF' -ForegroundColor Yellow } else { Write-Host 'not yet (starts when Online)' -ForegroundColor Yellow } } else { Write-Host 'stopped' -ForegroundColor Red }
+  Write-Host '   Node: ' -NoNewline -ForegroundColor DarkCyan; if (Node-Proc) { Write-Host 'running' -NoNewline -ForegroundColor Green; $lm = Log-Mining; Write-Host '   Mining: ' -NoNewline -ForegroundColor DarkCyan; if (Test-Path $PauseFile) { Write-Host 'paused' -ForegroundColor Yellow } elseif ($lm -eq 'on') { Write-Host 'ON' -ForegroundColor Green } elseif ($lm -eq 'off') { Write-Host 'OFF' -ForegroundColor Yellow } else { Write-Host 'not yet (starts when Online)' -ForegroundColor Yellow } } elseif (Api-Alive) { Write-Host 'API up (other process, e.g. Basecamp) - balance/inscribe ok' -ForegroundColor Cyan } else { Write-Host 'stopped' -ForegroundColor Red }
   Write-Host ''
   Say '   START' DarkYellow
   MenuItem '1' 'Install full node + start mining   (opens P2P port)' Green
