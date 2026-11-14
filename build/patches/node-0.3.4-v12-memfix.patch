@@ -1,0 +1,425 @@
+diff --git a/mmr/src/lib.rs b/mmr/src/lib.rs
+index 6f4d200f6..86d518b50 100644
+--- a/mmr/src/lib.rs
++++ b/mmr/src/lib.rs
+@@ -3,12 +3,12 @@ use std::sync::OnceLock;
+ use ark_ff::AdditiveGroup as _;
+ use lb_groth16::serde::serde_fr;
+ use lb_poseidon2::{Digest, Fr};
+-use rpds::StackSync;
++use rpds::{HashTrieMapSync, StackSync};
+ 
+ mod path;
+ 
+ pub use path::{MerklePath, MerklePathError, is_left_child};
+-use path::{update_paths_above_merge, update_paths_at_merge};
++use path::{sibling_height, update_paths_above_merge, update_paths_at_merge};
+ 
+ const EMPTY_VALUE: Fr = Fr::ZERO;
+ /// Largest supported MMR height, including leaves at height one.
+@@ -162,6 +162,64 @@ where
+         &self,
+         elem: T,
+         paths: &mut [MerklePath],
++    ) -> Result<(Self, MerklePath), PushWithPathsError> {
++        self.push_with_paths_impl(elem, paths, true)
++    }
++
++    /// Like [`Self::push_with_paths`], but only rewrites the paths whose
++    /// sibling subtree the new leaf completes. The rest stay shared with the
++    /// previous `paths`, with a stale sibling over the newest leaves; call
++    /// [`Self::refresh_path`] before using a path.
++    pub fn push_with_lazy_paths<K>(
++        &self,
++        elem: T,
++        paths: &mut HashTrieMapSync<K, MerklePath>,
++    ) -> Result<(Self, MerklePath), PushWithPathsError>
++    where
++        K: Clone + Eq + std::hash::Hash,
++    {
++        let new_leaf = self.len();
++        let (keys, mut completed): (Vec<K>, Vec<MerklePath>) = paths
++            .iter()
++            .filter(|(_, path)| {
++                path.leaf_index() < new_leaf
++                    && sibling_height(path.leaf_index(), new_leaf)
++                        <= new_leaf.trailing_ones() as usize
++            })
++            .map(|(key, path)| (key.clone(), path.clone()))
++            .unzip();
++
++        let pushed = self.push_with_paths_impl(elem, &mut completed, false)?;
++        for (key, path) in keys.into_iter().zip(completed) {
++            paths.insert_mut(key, path);
++        }
++        Ok(pushed)
++    }
++
++    /// Bring a path kept by [`Self::push_with_lazy_paths`] up to date, so that
++    /// it is valid against [`Self::frontier_root`].
++    pub fn refresh_path(&self, path: &mut MerklePath) -> Result<(), MerklePathError> {
++        path.validate_for_height(MAX_HEIGHT)?;
++        path.validate_leaf_index(self.len())?;
++
++        // Only the sibling subtree holding the last leaf can be stale. If it is
++        // incomplete, the peaks lower than it hold exactly its leaves.
++        let height = sibling_height(path.leaf_index(), self.len() - 1);
++        let peaks = self
++            .roots
++            .iter()
++            .take_while(|peak| usize::from(peak.height) < height);
++        if let Some(root) = fold_peaks::<Hash>(peaks, height) {
++            path.set_sibling(height, root);
++        }
++        Ok(())
++    }
++
++    fn push_with_paths_impl(
++        &self,
++        elem: T,
++        paths: &mut [MerklePath],
++        update_above_merge: bool,
+     ) -> Result<(Self, MerklePath), PushWithPathsError> {
+         if self.roots.peek().is_some_and(|r| r.height == MAX_HEIGHT) {
+             return Err(PushWithPathsError::MmrFull(MmrFull));
+@@ -212,7 +270,7 @@ where
+         update_paths_above_merge::<Hash, MAX_HEIGHT>(
+             last_root,
+             roots.iter().copied(),
+-            paths,
++            if update_above_merge { paths } else { &mut [] },
+             &mut new_path,
+         );
+ 
+@@ -229,33 +287,8 @@ where
+ 
+     #[must_use]
+     pub fn frontier_root(&self) -> Fr {
+-        let mut iter = self.roots.iter();
+-
+-        let (mut root, mut height) = match iter.next() {
+-            Some(last) => (last.root, last.height),
+-            None => {
+-                // MMR is empty. Return the root of an entirely empty tree.
+-                return empty_subtree_root::<Hash>(MAX_HEIGHT);
+-            }
+-        };
+-
+-        for last in iter {
+-            while height < last.height {
+-                root = Hash::compress(&[root, empty_subtree_root::<Hash>(height)]);
+-                height += 1;
+-            }
+-            root = Hash::compress(&[last.root, root]);
+-            height += 1;
+-        }
+-
+-        assert!(height <= MAX_HEIGHT);
+-        while height < MAX_HEIGHT {
+-            root = Hash::compress(&[root, empty_subtree_root::<Hash>(height)]);
+-            height += 1;
+-        }
+-        assert_eq!(height, MAX_HEIGHT);
+-
+-        root
++        fold_peaks::<Hash>(self.roots.iter(), MAX_HEIGHT.into())
++            .unwrap_or_else(|| empty_subtree_root::<Hash>(MAX_HEIGHT))
+     }
+ 
+     #[must_use]
+@@ -278,6 +311,30 @@ where
+     }
+ }
+ 
++/// Root of the subtree of the given `height` holding `peaks` (lowest first),
++/// padded on the right with empty subtrees, or `None` if there are no peaks.
++fn fold_peaks<'a, Hash: Digest>(
++    mut peaks: impl Iterator<Item = &'a Root>,
++    height: usize,
++) -> Option<Fr> {
++    let first = peaks.next()?;
++    let (mut root, mut root_height) = (first.root, first.height);
++    for peak in peaks {
++        while root_height < peak.height {
++            root = Hash::compress(&[root, empty_subtree_root::<Hash>(root_height)]);
++            root_height += 1;
++        }
++        root = Hash::compress(&[peak.root, root]);
++        root_height += 1;
++    }
++    assert!(usize::from(root_height) <= height);
++    while usize::from(root_height) < height {
++        root = Hash::compress(&[root, empty_subtree_root::<Hash>(root_height)]);
++        root_height += 1;
++    }
++    Some(root)
++}
++
+ pub(crate) fn empty_subtree_root<Hash: Digest>(height: u8) -> Fr {
+     static PRECOMPUTED_EMPTY_ROOTS: OnceLock<[Fr; ACCEPTABLE_MAX_HEIGHT as usize]> =
+         OnceLock::new();
+@@ -727,6 +784,34 @@ mod test {
+         }
+     }
+ 
++    #[test]
++    fn test_lazy_paths_refresh_to_push_with_paths() {
++        const HEIGHT: u8 = 8;
++        let mut full = <MerkleMountainRange<TestFr, ZkHasher, HEIGHT>>::new();
++        let mut lazy = <MerkleMountainRange<TestFr, ZkHasher, HEIGHT>>::new();
++        let mut full_paths: Vec<MerklePath> = Vec::new();
++        let mut lazy_paths = HashTrieMapSync::new_sync();
++
++        for i in 0u64..100 {
++            let elem = || TestFr::from(i.to_le_bytes().as_ref());
++
++            let (new_full, new_path) = full.push_with_paths(elem(), &mut full_paths).unwrap();
++            full = new_full;
++            full_paths.push(new_path);
++
++            let (new_lazy, new_path) = lazy.push_with_lazy_paths(elem(), &mut lazy_paths).unwrap();
++            lazy = new_lazy;
++            lazy_paths.insert_mut(new_path.leaf_index(), new_path);
++
++            assert_eq!(full.frontier_root(), lazy.frontier_root());
++            for full_path in &full_paths {
++                let mut path = lazy_paths[&full_path.leaf_index()].clone();
++                lazy.refresh_path(&mut path).unwrap();
++                assert_eq!(&path, full_path, "leaf {}", full_path.leaf_index());
++            }
++        }
++    }
++
+     #[test]
+     fn test_deserialization_rejects_unsupported_mmr_height() {
+         type ValidMmr = MerkleMountainRange<TestFr, ZkHasher, 1>;
+diff --git a/mmr/src/path.rs b/mmr/src/path.rs
+index a95aad719..0222e9bfb 100644
+--- a/mmr/src/path.rs
++++ b/mmr/src/path.rs
+@@ -95,6 +95,11 @@ impl MerklePath {
+     pub fn siblings(&self) -> &[Fr] {
+         self.siblings.as_slice()
+     }
++
++    /// Set the root of the sibling subtree at `height`.
++    pub(crate) fn set_sibling(&mut self, height: usize, root: Fr) {
++        self.siblings[height - 1] = root;
++    }
+ }
+ 
+ /// A malformed or incompatible MMR path.
+@@ -232,7 +237,7 @@ const fn are_siblings_at(a: usize, b: usize, height: usize) -> bool {
+ }
+ 
+ /// The unique height at which leaves `a` and `b` are siblings.
+-const fn sibling_height(a: usize, b: usize) -> usize {
++pub const fn sibling_height(a: usize, b: usize) -> usize {
+     (a ^ b).bit_width() as usize
+ }
+ 
+diff --git a/wallet/src/lib.rs b/wallet/src/lib.rs
+index 285564de6..2b6fc8ffa 100644
+--- a/wallet/src/lib.rs
++++ b/wallet/src/lib.rs
+@@ -162,7 +162,10 @@ pub struct WalletState {
+     pub epoch: Epoch,
+     /// MMR of all voucher commitments included in the chain
+     pub vouchers: MerkleMountainRange<VoucherCm, ZkHasher>,
+-    /// All **tracked** voucher merkle paths up to the current block
++    /// All **tracked** voucher merkle paths up to the current block.
++    ///
++    /// The sibling covering the latest vouchers may be stale; see
++    /// [`MerkleMountainRange::push_with_lazy_paths`].
+     pub voucher_paths: VoucherPaths,
+     /// A snapshot of **tracked** voucher merkle paths,
+     /// updated at the first block of each epoch.
+@@ -468,38 +471,39 @@ impl WalletState {
+     > {
+         // Snapshot voucher paths if epoch is advancing
+         let snapshot = if block.epoch > self.epoch {
+-            self.voucher_paths.clone()
++            self.voucher_paths
++                .iter()
++                .map(|(cm, path)| {
++                    let mut path = path.clone();
++                    self.vouchers.refresh_path(&mut path)?;
++                    Ok((*cm, path))
++                })
++                .collect::<Result<_, WalletError>>()?
+         } else {
+             self.voucher_paths_snapshot.clone()
+         };
+ 
+         // Filter out vouchers that have been claimed/finalized.
+         // `known_vouchers` always reflects the latest set of vouchers to be tracked.
+-        let (cms, mut paths): (Vec<VoucherCm>, Vec<MerklePath>) = self
+-            .voucher_paths
+-            .iter()
+-            .filter(|(cm, _)| known_vouchers.get(cm).is_some())
+-            .map(|(cm, path)| (*cm, path.clone()))
+-            .unzip();
++        let mut voucher_paths = self.voucher_paths.clone();
++        for cm in self.voucher_paths.keys() {
++            if known_vouchers.get(cm).is_none() {
++                voucher_paths.remove_mut(cm);
++            }
++        }
+ 
+-        // Push the new voucher to the MMR and update all tracked paths
++        // Push the new voucher to the MMR and update the tracked paths it settles
+         let (vouchers, new_path) = self
+             .vouchers
+-            .push_with_paths(block.voucher_cm, &mut paths)
++            .push_with_lazy_paths(block.voucher_cm, &mut voucher_paths)
+             .map_err(|error| match error {
+                 lb_mmr::PushWithPathsError::MmrFull(_) => WalletError::VoucherMmrFull,
+                 lb_mmr::PushWithPathsError::InvalidTrackedPath(error) => error.into(),
+             })?;
+ 
+-        // Rebuild the tracked voucher paths map with updated paths.
+-        let mut voucher_paths = rpds::HashTrieMapSync::new_sync();
+-        for (cm, path) in cms.into_iter().zip(paths) {
+-            voucher_paths = voucher_paths.insert(cm, path);
+-        }
+-
+         // Track the new voucher's path if it is owned by us
+         if known_vouchers.get(&block.voucher_cm).is_some() {
+-            voucher_paths = voucher_paths.insert(block.voucher_cm, new_path);
++            voucher_paths.insert_mut(block.voucher_cm, new_path);
+         }
+ 
+         Ok((vouchers, voucher_paths, snapshot))
+@@ -780,7 +784,12 @@ where
+         tip: HeaderId,
+         cm: &VoucherCm,
+     ) -> Result<Option<MerklePath>, WalletError> {
+-        Ok(self.wallet_state_at(tip)?.voucher_paths.get(cm).cloned())
++        let state = self.wallet_state_at(tip)?;
++        let Some(mut path) = state.voucher_paths.get(cm).cloned() else {
++            return Ok(None);
++        };
++        state.vouchers.refresh_path(&mut path)?;
++        Ok(Some(path))
+     }
+ 
+     pub fn balance(
+@@ -2389,4 +2398,118 @@ mod tests {
+         )
+         .unwrap()
+     }
++
++    fn rss_kb() -> u64 {
++        let Ok(status) = std::fs::read_to_string("/proc/self/status") else {
++            return 0;
++        };
++        for line in status.lines() {
++            if let Some(rest) = line.strip_prefix("VmRSS:") {
++                return rest.split_whitespace().next().and_then(|s| s.parse().ok()).unwrap_or(0);
++            }
++        }
++        0
++    }
++
++    fn rss_anon_kb() -> u64 {
++        let Ok(status) = std::fs::read_to_string("/proc/self/status") else {
++            return 0;
++        };
++        for line in status.lines() {
++            if let Some(rest) = line.strip_prefix("RssAnon:") {
++                return rest.split_whitespace().next().and_then(|s| s.parse().ok()).unwrap_or(0);
++            }
++        }
++        0
++    }
++
++    fn hid(n: u32) -> HeaderId {
++        let mut bytes = [0u8; 32];
++        bytes[..4].copy_from_slice(&n.to_le_bytes());
++        HeaderId::from(bytes)
++    }
++
++    /// Measures the per-block voucher-path clone leak.
++    ///
++    /// A wallet keeps one `WalletState` per applied block until LIB prune.
++    /// The pre-fix `apply_voucher` rebuilt a unique `VoucherPaths` map (cloning
++    /// every MerklePath) on every block. This test keeps all states and applies
++    /// many blocks after a fixed set of vouchers is tracked, which is the same
++    /// growth the long-running node shows between LIB advances / during IBD.
++    #[test]
++    fn voucher_path_memory_stays_flat_after_tracked_set_is_stable() {
++        const TRACKED: u32 = 32;
++        const EXTRA: u32 = 3000;
++
++        let genesis = hid(0);
++        let ledger = LedgerState::from_utxos([], &ledger_config());
++        let known: Vec<_> = (0..TRACKED)
++            .map(|i| {
++                let (cm, nf) = voucher(1, u64::from(i));
++                (cm, nf, (1u64, u64::from(i)))
++            })
++            .collect();
++
++        let mut wallet = Wallet::<_, TestVoucherId>::from_lib_ledger_state(
++            empty::<(ZkPublicKey, u64)>(),
++            Vouchers::new(known.iter().copied()),
++            genesis,
++            &ledger,
++        );
++
++        let mut parent = genesis;
++        for i in 1..=TRACKED {
++            let id = hid(i);
++            wallet
++                .apply_block(&WalletBlock {
++                    id,
++                    parent,
++                    epoch: 1.into(),
++                    voucher_cm: known[(i as usize) - 1].0,
++                    header_ops: vec![],
++                    txs: BlockTransactions::empty(),
++                })
++                .unwrap();
++            parent = id;
++        }
++
++        // Touch the heap so the baseline includes the tracked set and setup.
++        let baseline_rss = rss_kb();
++        let baseline_anon = rss_anon_kb();
++
++        for i in 1..=EXTRA {
++            let id = hid(TRACKED + i);
++            let (foreign_cm, _) = voucher(2, u64::from(i));
++            wallet
++                .apply_block(&WalletBlock {
++                    id,
++                    parent,
++                    epoch: 1.into(),
++                    voucher_cm: foreign_cm,
++                    header_ops: vec![],
++                    txs: BlockTransactions::empty(),
++                })
++                .unwrap();
++            parent = id;
++        }
++
++        let after_rss = rss_kb();
++        let after_anon = rss_anon_kb();
++        let delta_rss = after_rss.saturating_sub(baseline_rss);
++        let delta_anon = after_anon.saturating_sub(baseline_anon);
++        println!(
++            "MEMTEST tracked={TRACKED} extra={EXTRA} states={} baseline_rss_kb={baseline_rss} after_rss_kb={after_rss} delta_rss_kb={delta_rss} baseline_anon_kb={baseline_anon} after_anon_kb={after_anon} delta_anon_kb={delta_anon}",
++            usize::try_from(TRACKED + EXTRA).unwrap() + 1,
++        );
++
++        // With path sharing, 3000 extra states should reuse the tracked paths.
++        // Allow a modest allocator/slack budget (maps, MMR peaks). The unfixed
++        // code clones 32 paths * 32 siblings on every block and grows many
++        // times this.
++        assert!(
++            delta_anon < 80_000,
++            "anonymous RSS grew by {delta_anon} kB over {EXTRA} blocks; voucher paths are probably being cloned per block"
++        );
++        let _ = parent;
++    }
+ }

@@ -10,7 +10,7 @@ MinGW `ar` archives. Both only link cleanly with the MinGW toolchain.
 | 0 | - | MSYS2 to `C:\msys64`; `pacman -S base-devel git unzip mingw-w64-x86_64-{toolchain,cmake,nasm,clang,protobuf}`; rustup-init with the gnu host. |
 | 1 | `01-rapidsnark.sh` | mman-win32, nlohmann/json 3.12.0, rapidsnark at `998383787ee8` (the circuits submodule pin) with the files in `rapidsnark-windows/`, GMP 6.2.1, then `make host_windows_x86_64_static`. Our changes vs the CI recipe: `-G "MSYS Makefiles"`, `-Duint=unsigned`, absolute `C:/msys64/include` and `C:/msys64/lib` paths for mman. |
 | 2 | `02-fix-circuit-libs.sh`, `03-fix-circuit-libs-comdat.sh` | Needs the logos-blockchain-circuits **v0.5.7** windows-x86_64 tarball extracted at `$LBC_ROOT_DIR`. The official `.lib` files localize COMDAT template symbols during "symbol isolation", so references stay undefined under gnu ld. These scripts globalize them (ODR-identical, so folding is safe), give `.refptr.Fr_q` a unique name per circuit, and write `lib<name>.a`. |
-| 3 | `04-node-source.sh` | logos-blockchain at tag `0.3.4`; rust-rapidsnark at the rev pinned in `Cargo.lock` (`e91187f8`) plus `patches/rust-rapidsnark-windows.patch`; `patches/node-0.3.4-v11.patch` on the node source (see below); a `[patch]` entry in the workspace `Cargo.toml`. |
+| 3 | `04-node-source.sh` | logos-blockchain at tag `0.3.4`; rust-rapidsnark at the rev pinned in `Cargo.lock` (`e91187f8`) plus `patches/rust-rapidsnark-windows.patch`; `patches/node-0.3.4-v11.patch` then `patches/node-0.3.4-v12-memfix.patch` on the node source (see below); a `[patch]` entry in the workspace `Cargo.toml`. |
 | 4 | `05-build-node.ps1` | Env: `RAPIDSNARK_LIB_DIR`, `LBC_ROOT_DIR`, `LIBCLANG_PATH`, `RUSTFLAGS=-L native=C:/msys64/lib -l static=mman`. About 30 min on a 4-core laptop. |
 | 5 | `06-build-lxpost.sh` | Path dependencies on `../logos-blockchain` (put this repo and the node checkout side by side). |
 | 6 | `07-pack.sh` | Copies `app/`, the binaries and the MinGW runtime DLLs (`libgcc_s_seh-1.dll`, `libstdc++-6.dll`, `libwinpthread-1.dll` from `C:\msys64\mingw64\bin`, unmodified) into `LogosNode/`, then zips it. With `SIGNING_KEY=...` it also writes and verifies the signed update folder. |
@@ -40,3 +40,10 @@ whole program can be rebuilt and relinked. If you need the exact sources used fo
 Tests used for build 11 (same environment as step 4):
 `cargo test -p logos-blockchain-blend-service --release --lib -- tests --test-threads=1` and
 `cargo test -p logos-blockchain-pow-service --release --lib -- tests --test-threads=1`.
+
+## Node patch (unreleased memory fix)
+`patches/node-0.3.4-v12-memfix.patch` applies on top of the v11 patch. It stops the wallet from cloning every
+tracked voucher Merkle path into a new map on every block (the same leak as the long-running Linux node).
+Paths that a new voucher does not settle are shared with the previous per-block `WalletState` via
+`push_with_lazy_paths`. A regression test applies 32 tracked vouchers plus 3000 further blocks and checks
+that anonymous RSS stays nearly flat. This is source only; there is no build 12 release yet.

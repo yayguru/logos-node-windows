@@ -4,6 +4,20 @@ Unofficial Windows build of the Logos blockchain node. Build numbers are this pr
 Builds 1 to 7 were released before this repository was public (build 6 was the first signed-update release).
 Times are approximate. Builds 1 to 7 bundle node 0.3.2.
 
+## Unreleased (memory fix, no zip yet), node 0.3.4 + build 11 fixes + voucher path sharing
+Fixes the memory leak where the node's RSS grew by hundreds of MB to several GB over a few hours (same
+behaviour on Linux and Windows). The wallet kept one `WalletState` per applied block and, on every new
+block, rebuilt a unique map of tracked voucher Merkle paths (cloning every path). Until LIB prune (and
+during IBD) those copies accumulated.
+- **Fix.** `wallet` / `mmr`: share unchanged voucher paths between per-block states (`push_with_lazy_paths`).
+  A path is updated only when the new voucher settles it. This is the mem/0.3.4-instrumentation work applied
+  on top of build 11, plus a regression test.
+- **Evidence (debug unit test, 32 tracked vouchers, 3000 extra blocks, 3033 states kept).**
+  Build 11 / current: anonymous RSS +114532 kB. After the fix: +1276 kB (~90× less, nearly flat).
+  `cargo test -p logos-blockchain-wallet -p logos-blockchain-mmr`: 20 + 23 passed.
+- Source: `build/patches/node-0.3.4-v12-memfix.patch`, applied after the v11 patch. No Windows binary or
+  GitHub release in this commit.
+
 ## Build 11 (2026-11-12), node 0.3.4 + fixes
 Fixes PoW claims that stop settling after this node proposes its own block ("claims stop after my block"). The node had to
 be restarted to recover; it no longer does.
